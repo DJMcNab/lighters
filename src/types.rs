@@ -64,37 +64,51 @@ scalar!(i32, Sint, 4);
 scalar!(f32, Float, 4);
 scalar!(bool, Bool, naga::BOOL_WIDTH);
 
-impl ToType for glam::u32::UVec2 {
-    fn naga_ty_inner(_: &mut TypeRegistry) -> TypeInner {
-        TypeInner::Vector {
-            size: naga::VectorSize::Bi,
-            kind: ScalarKind::Uint,
-            width: 4,
+macro_rules! vector {
+    ($type: ty: $size: ident, $kind: ident, $width: expr, ($($components: ident),+)) => {
+        impl ToType for $type {
+            fn naga_ty_inner(_: &mut TypeRegistry) -> TypeInner {
+                TypeInner::Vector {
+                    size: naga::VectorSize::$size,
+                    kind: ScalarKind::$kind,
+                    width: $width,
+                }
+            }
         }
-    }
+
+        impl ToConstant for $type {
+            fn naga_constant(&self, registry: &mut TypeRegistry) -> ConstantInner {
+                ConstantInner::Composite {
+                    ty: registry.register_type::<Self>(),
+                    components: vec![
+                        $(registry.register_constant(self.$components)),+
+                    ],
+                }
+            }
+        }
+    };
 }
 
-impl ToConstant for glam::u32::UVec2 {
-    fn naga_constant(&self, registry: &mut TypeRegistry) -> ConstantInner {
-        ConstantInner::Composite {
-            ty: registry.register_type::<Self>(),
-            components: vec![
-                registry.register_constant(self.x),
-                registry.register_constant(self.y),
-            ],
-        }
-    }
-}
+vector!(glam::u32::UVec2: Bi, Uint, 4, (x, y));
+vector!(glam::u32::UVec3: Tri, Uint, 4, (x, y, z));
+vector!(glam::u32::UVec4: Quad, Uint, 4, (x, y, z, w));
 
-impl ToType for glam::u32::UVec3 {
-    fn naga_ty_inner(_: &mut TypeRegistry) -> TypeInner {
-        TypeInner::Vector {
-            size: naga::VectorSize::Tri,
-            kind: ScalarKind::Uint,
-            width: 4,
-        }
-    }
-}
+vector!(glam::i32::IVec2: Bi, Sint, 4, (x, y));
+vector!(glam::i32::IVec3: Tri, Sint, 4, (x, y, z));
+vector!(glam::i32::IVec4: Quad, Sint, 4, (x, y, z, w));
+
+vector!(glam::f32::Vec2: Bi, Float, 4, (x, y));
+vector!(glam::f32::Vec3: Tri, Float, 4, (x, y, z));
+vector!(glam::f32::Vec4: Quad, Float, 4, (x, y, z, w));
+
+vector!(glam::bool::BVec2: Bi, Bool, naga::BOOL_WIDTH, (x, y));
+vector!(glam::bool::BVec3: Tri, Bool, naga::BOOL_WIDTH, (x, y, z));
+vector!(
+    glam::bool::BVec4: Quad,
+    Bool,
+    naga::BOOL_WIDTH,
+    (x, y, z, w)
+);
 
 pub struct MyStruct {
     pub a: u32,

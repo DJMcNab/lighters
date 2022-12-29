@@ -5,9 +5,9 @@ use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use glam::UVec2;
+use glam::{IVec4, UVec2, UVec4, Vec3};
 use naga::{Block, Constant, Handle};
-use naga::{EntryPoint, Expression, Function, Module, Span, Statement, Type};
+use naga::{EntryPoint, Expression, Function, Module, Span, Type};
 
 /// We unfortunately need to use a null span for all operations, because naga only understands single-file
 /// sources. In theory, we could use `Span` as a `u64` identifier, although since wgpu would panic if the error was printed
@@ -129,8 +129,6 @@ pub use Value as V;
 pub fn module() -> Module {
     let mut module_cx = ModuleContext::default();
 
-    let u32_ty = module_cx.type_for::<u32>();
-
     let mut function = Function::default();
 
     let entry_point = {
@@ -141,6 +139,10 @@ pub fn module() -> Module {
         let fn_cx = FnCx(Rc::new(RefCell::new(context)));
         fn_cx.add_named_constant(UVec2::new(10, 20), "test");
         fn_cx.add_named_constant(UVec2::new(20, 30), "test23");
+        fn_cx.add_named_constant(UVec4::new(20, 30, 40, 50), "test23");
+        fn_cx.add_named_constant(IVec4::new(21, -31, 41, -51), "test23");
+        fn_cx.add_named_constant(Vec3::new(22., 33.4, std::f32::consts::PI), "test23");
+        fn_cx.add_named_constant(glam::bool::BVec3::new(true, false, true), "test23");
         EntryPoint {
             name: "main".to_string(),
             stage: naga::ShaderStage::Compute,
