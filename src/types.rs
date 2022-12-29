@@ -85,7 +85,7 @@ impl ToType for MyStruct {
 }
 
 #[derive(Default)]
-pub struct TypeMap {
+pub(crate) struct TypeMap {
     map: HashMap<TypeId, Handle<Type>>,
 }
 
@@ -109,7 +109,7 @@ pub struct TypeRegistry<'a> {
 }
 
 impl<'a> TypeRegistry<'a> {
-    pub fn new(module: &'a mut Module, tys: &'a mut TypeMap) -> Self {
+    pub(crate) fn new(module: &'a mut Module, tys: &'a mut TypeMap) -> Self {
         Self { tys, module }
     }
 
