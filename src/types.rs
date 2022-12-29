@@ -1,4 +1,6 @@
-use naga::{Handle, Module, ScalarKind, StructMember, Type, TypeInner};
+use naga::{
+    Constant, ConstantInner, Handle, Module, ScalarKind, ScalarValue, StructMember, Type, TypeInner,
+};
 use std::{
     any::TypeId,
     collections::HashMap,
@@ -8,13 +10,22 @@ use std::{
 use crate::SPAN;
 
 pub trait ToType: 'static + Sized {
+    fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner;
+
     fn naga_ty(registry: &mut TypeRegistry) -> Type {
         Type {
             name: Some(type_name_simple_of::<Self>()),
             inner: Self::naga_ty_inner(registry),
         }
     }
-    fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner;
+
+    fn type_handle(registry: &mut TypeRegistry) -> Handle<Type> {
+        if let Some(ty) = registry.tys.get(&TypeId::of::<Self>()) {
+            return ty.clone();
+        }
+        let ty_val = Self::naga_ty(registry);
+        registry.module.types.insert(ty_val, SPAN)
+    }
 }
 
 fn type_name_simple_of<T: 'static>() -> String {
@@ -23,35 +34,64 @@ fn type_name_simple_of<T: 'static>() -> String {
     name_final.replace("<", "_").replace(">", "_")
 }
 
-impl ToType for u32 {
+pub trait ToConstant: ToType {
+    fn naga_constant(&self, registry: &mut TypeRegistry) -> ConstantInner;
+}
+
+macro_rules! scalar {
+    ($type: ty, $kind: ident, $width: expr) => {
+        impl ToType for $type {
+            fn naga_ty_inner(_: &mut TypeRegistry) -> TypeInner {
+                naga::TypeInner::Scalar {
+                    kind: ScalarKind::$kind,
+                    width: $width,
+                }
+            }
+        }
+        impl ToConstant for $type {
+            fn naga_constant(&self, _: &mut TypeRegistry) -> ConstantInner {
+                ConstantInner::Scalar {
+                    width: $width,
+                    value: ScalarValue::$kind((*self).into()),
+                }
+            }
+        }
+    };
+}
+
+scalar!(u32, Uint, 4);
+scalar!(i32, Sint, 4);
+scalar!(f32, Float, 4);
+scalar!(bool, Bool, naga::BOOL_WIDTH);
+
+impl ToType for glam::u32::UVec2 {
     fn naga_ty_inner(_: &mut TypeRegistry) -> TypeInner {
-        naga::TypeInner::Scalar {
+        TypeInner::Vector {
+            size: naga::VectorSize::Bi,
             kind: ScalarKind::Uint,
             width: 4,
         }
     }
 }
-impl ToType for i32 {
-    fn naga_ty_inner(_: &mut TypeRegistry) -> TypeInner {
-        naga::TypeInner::Scalar {
-            kind: ScalarKind::Sint,
-            width: 4,
+
+impl ToConstant for glam::u32::UVec2 {
+    fn naga_constant(&self, registry: &mut TypeRegistry) -> ConstantInner {
+        ConstantInner::Composite {
+            ty: registry.register_type::<Self>(),
+            components: vec![
+                registry.register_constant(self.x),
+                registry.register_constant(self.y),
+            ],
         }
     }
 }
-impl ToType for f32 {
+
+impl ToType for glam::u32::UVec3 {
     fn naga_ty_inner(_: &mut TypeRegistry) -> TypeInner {
-        naga::TypeInner::Scalar {
-            kind: ScalarKind::Float,
+        TypeInner::Vector {
+            size: naga::VectorSize::Tri,
+            kind: ScalarKind::Uint,
             width: 4,
-        }
-    }
-}
-impl ToType for bool {
-    fn naga_ty_inner(_: &mut TypeRegistry) -> TypeInner {
-        naga::TypeInner::Scalar {
-            kind: ScalarKind::Bool,
-            width: naga::BOOL_WIDTH,
         }
     }
 }
@@ -114,10 +154,33 @@ impl<'a> TypeRegistry<'a> {
     }
 
     pub fn register_type<T: ToType>(&mut self) -> Handle<Type> {
-        if let Some(ty) = self.tys.get(&TypeId::of::<T>()) {
-            return ty.clone();
-        }
-        let ty_val = T::naga_ty(self);
-        self.module.types.insert(ty_val, SPAN)
+        T::type_handle(self)
+    }
+
+    pub fn register_constant_named<T: ToConstant>(
+        &mut self,
+        val: T,
+        name: impl Into<String>,
+    ) -> Handle<naga::Constant> {
+        let inner = val.naga_constant(self);
+        self.register_constant_inner(inner, Some(name.into()))
+    }
+
+    pub fn register_constant<T: ToConstant>(&mut self, val: T) -> Handle<naga::Constant> {
+        let inner = val.naga_constant(self);
+        self.register_constant_inner(inner, None)
+    }
+
+    fn register_constant_inner(
+        &mut self,
+        inner: ConstantInner,
+        name: Option<String>,
+    ) -> Handle<naga::Constant> {
+        let constant = Constant {
+            name,
+            specialization: None,
+            inner,
+        };
+        self.module.constants.append(constant, SPAN)
     }
 }
