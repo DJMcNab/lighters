@@ -1,13 +1,13 @@
+pub mod arguments;
 pub mod types;
 
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use naga::{Block, Handle};
-use naga::{
-    EntryPoint, Expression, Function, FunctionArgument, Module, Span, Statement, Type, TypeInner,
-};
+use glam::UVec2;
+use naga::{Block, Constant, Handle};
+use naga::{EntryPoint, Expression, Function, Module, Span, Statement, Type};
 
 /// We unfortunately need to use a null span for all operations, because naga only understands single-file
 /// sources. In theory, we could use `Span` as a `u64` identifier, although since wgpu would panic if the error was printed
@@ -19,7 +19,7 @@ use naga::{
 /// It seems surprising that the spir-v or glsl backends don't run into this, although I haven't looked into it
 const SPAN: Span = Span::UNDEFINED;
 
-use types::MyStruct;
+use types::ToConstant;
 use types::TypeMap;
 pub use types::{ToType, TypeRegistry};
 
@@ -62,8 +62,29 @@ impl<'a> FnCx<'a> {
         f(&mut self.0.borrow_mut().function)
     }
 
+    pub fn with_module_cx<R>(&self, f: impl FnOnce(&mut ModuleContext) -> R) -> R {
+        f(&mut self.0.borrow_mut().module)
+    }
+
     pub fn add_expression(&self, expression: Expression) -> Handle<Expression> {
         self.with_function(|f| f.expressions.append(expression, SPAN))
+    }
+
+    pub fn add_constant<T: ToConstant>(&self, val: T) -> Handle<Constant> {
+        self.with_module_cx(|module| {
+            let mut registry = TypeRegistry::new(&mut module.module, &mut module.type_map);
+            registry.register_constant(val)
+        })
+    }
+    pub fn add_named_constant<T: ToConstant>(
+        &self,
+        val: T,
+        name: impl Into<String>,
+    ) -> Handle<Constant> {
+        self.with_module_cx(|module| {
+            let mut registry = TypeRegistry::new(&mut module.module, &mut module.type_map);
+            registry.register_constant_named(val, name)
+        })
     }
 }
 
@@ -111,33 +132,15 @@ pub fn module() -> Module {
     let u32_ty = module_cx.type_for::<u32>();
 
     let mut function = Function::default();
-    function.arguments.push(FunctionArgument {
-        name: Some("oh_neat".to_string()),
-        ty: u32_ty,
-        binding: Some(naga::Binding::Location {
-            location: 0,
-            interpolation: None,
-            sampling: None,
-        }),
-    });
-    let arg_expr = function
-        .expressions
-        .append(Expression::FunctionArgument(0), SPAN);
+
     let entry_point = {
         let context = FunctionContext {
             module: &mut module_cx,
             function: &mut function,
         };
         let fn_cx = FnCx(Rc::new(RefCell::new(context)));
-        let arg_expr_value = Value::<u32> {
-            expr: arg_expr,
-            fn_cx,
-            val: PhantomData,
-        };
-        arg_expr_value.add(&arg_expr_value).named("val");
-        function
-            .body
-            .push(Statement::Emit(function.expressions.range_from(0)), SPAN);
+        fn_cx.add_named_constant(UVec2::new(10, 20), "test");
+        fn_cx.add_named_constant(UVec2::new(20, 30), "test23");
         EntryPoint {
             name: "main".to_string(),
             stage: naga::ShaderStage::Compute,
