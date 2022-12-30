@@ -141,7 +141,7 @@ pub fn module() -> Module {
         s!(
             cx,
             if (cx.const_(true)) {
-                Let!(x = &_true_result / 4);
+                Let!(_x = &_true_result / 4);
             } else {
                 Let!(_false_result = &_true_result + 5);
             }

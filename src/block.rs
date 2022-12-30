@@ -105,24 +105,17 @@ impl<'a> Deref for BlockContext<'a> {
 #[macro_export]
 macro_rules! statement {
     ($block: ident, if ($val: expr) {$($then: stmt);* $(;)?}) => {
-        $block.if_(
-            $val,
-            #[allow(redundant_semicolons)]
-            |$block| {
-                $($then);*;
-            },
-            |_| {},
-        )
+        statement!($block, if ($val) {$(then);*} else {});
     };
     ($block: ident, if ($val: expr) {$($then: stmt);* $(;)?} else {$($else_block: stmt);* $(;)?}) => {
         $block.if_(
             $val,
             #[allow(redundant_semicolons)]
-            |$block| {
+            |#[allow(unused)] $block| {
                 $($then;)*
             },
             #[allow(redundant_semicolons)]
-            |$block| {
+            |#[allow(unused)] $block| {
                 $($else_block;)*
             },
         )
