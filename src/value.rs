@@ -6,6 +6,7 @@ use naga::Expression;
 use naga::Handle;
 use std::marker::PhantomData;
 
+#[derive(Clone)]
 pub struct Value<'a, T: ToType> {
     expr: Handle<Expression>,
     fn_cx: FnCx<'a>,

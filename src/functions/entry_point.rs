@@ -3,13 +3,13 @@ use crate::{ToType, Value};
 pub mod compute {
     use glam::UVec3;
 
-    use super::BoundArgument;
+    use super::EntryPointArgument;
 
     macro_rules! builtin_binding {
         ($(#[$attrs: meta])* struct $type: ident: $inner: ty) => {
             $(#[$attrs])*
             pub struct $type;
-            impl BoundArgument for $type {
+            impl EntryPointArgument for $type {
                 type Inner = $inner;
 
                 fn binding() -> naga::Binding {
@@ -31,23 +31,23 @@ pub mod compute {
     builtin_binding!(struct NumWorkGroups: UVec3);
 }
 
-pub trait BoundArgument: 'static + Sized {
+pub trait EntryPointArgument: 'static + Sized {
     type Inner: ToType;
 
     fn binding() -> naga::Binding;
 }
 
-impl<T: BoundArgument> ToType for T {
+impl<T: EntryPointArgument> ToType for T {
     fn naga_ty_inner(_: &mut crate::TypeRegistry) -> naga::TypeInner {
         unimplemented!();
     }
 
     fn type_handle(registry: &mut crate::TypeRegistry) -> naga::Handle<naga::Type> {
-        registry.register_type::<<Self as BoundArgument>::Inner>()
+        registry.register_type::<<Self as EntryPointArgument>::Inner>()
     }
 }
 
-impl<'a, T: BoundArgument> Value<'a, T> {
+impl<'a, T: EntryPointArgument> Value<'a, T> {
     pub fn inner(&self) -> Value<'a, T::Inner> {
         self.with_type()
     }
