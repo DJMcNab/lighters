@@ -137,16 +137,16 @@ pub fn module() -> Module {
     let mut module_cx = ModuleContext::default();
 
     module_cx.function(|cx| {
+        Let!(_true_result = cx.const_(1u32) + cx.const_(2u32));
         s!(
             cx,
             if (cx.const_(true)) {
-                Let!(_true_result = cx.const_(1u32) + cx.const_(2u32));
-                Let!(x = _true_result + cx.const_(4u32));
+                Let!(x = &_true_result / 4);
             } else {
-                Let!(_false_result = cx.const_(4u32) + cx.const_(5u32));
+                Let!(_false_result = &_true_result + 5);
             }
         );
-        Let!(_true_result = cx.const_(1u32) + cx.const_(2u32));
+        Let!(_true_result = cx.const_(1u32) % 2u32);
     });
 
     module_cx.module

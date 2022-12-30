@@ -74,8 +74,8 @@ impl<'a> BlockContext<'a> {
     pub fn if_(
         &mut self,
         condition: Value<bool>,
-        then: impl FnOnce(&mut BlockContext),
-        else_: impl FnOnce(&mut BlockContext),
+        then: impl FnOnce(&mut BlockContext<'a>),
+        else_: impl FnOnce(&mut BlockContext<'a>),
     ) {
         self.emit();
         let mut then_block = BlockContext::new(self.function.clone());

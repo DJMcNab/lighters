@@ -1,3 +1,5 @@
+mod ops;
+
 use super::FnCx;
 use crate::ToType;
 use naga::Expression;
@@ -43,17 +45,5 @@ impl<'a, T: ToType> Value<'a, T> {
             fn_cx: fn_cx.clone(),
             val: PhantomData,
         }
-    }
-}
-
-impl<'a> std::ops::Add for Value<'a, u32> {
-    type Output = Value<'a, u32>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        self.with_expression(Expression::Binary {
-            op: naga::BinaryOperator::Add,
-            left: self.expr,
-            right: rhs.expr,
-        })
     }
 }
