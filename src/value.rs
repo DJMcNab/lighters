@@ -33,7 +33,7 @@ impl<'a, T: ToType> Value<'a, T> {
         }
     }
 
-    pub(crate) fn named(self, name: impl Into<String>) -> Self {
+    pub fn named(self, name: impl Into<String>) -> Self {
         self.fn_cx
             .with_function(|f| f.named_expressions.insert(self.expr, name.into()));
         self
