@@ -28,7 +28,7 @@ pub use value::Value;
 
 macro_rules! Let {
     ($name: ident = $val: expr) => {
-        let $name = ($val).named(stringify!($name));
+        statement!(_fake, let $name = $val);
     };
 }
 
@@ -133,20 +133,21 @@ impl<'a> FnCx<'a> {
 }
 
 pub fn module() -> Module {
+    use crate::statement as s;
     let mut module_cx = ModuleContext::default();
 
     module_cx.function(|cx| {
-        statements!(
+        s!(
             cx,
             if (cx.const_(true)) {
-                let _true_result = cx.const_(1u32) + cx.const_(2u32)
-            },
-            if (cx.const_(true)) {
+                Let!(_true_result = cx.const_(1u32) + cx.const_(2u32));
+                Let!(x = _true_result + cx.const_(4u32));
+            } else {
+                Let!(_false_result = cx.const_(4u32) + cx.const_(5u32));
             }
         );
+        Let!(_true_result = cx.const_(1u32) + cx.const_(2u32));
     });
-
-    // module_cx.entry_point(|fn_cx| {});
 
     module_cx.module
 }

@@ -22,12 +22,10 @@ mod emitter {
                 unreachable!("Emitting has already started!");
             }
             self.start_len = Some(arena.len());
-            println!("Started");
         }
         #[must_use]
         #[track_caller]
         pub fn finish(&mut self, arena: &Arena<crate::Expression>) -> Option<crate::Statement> {
-            println!("Finished");
             let start_len = self.start_len.take().unwrap();
             if start_len != arena.len() {
                 let range = arena.range_from(start_len);
@@ -104,33 +102,32 @@ impl<'a> Deref for BlockContext<'a> {
     }
 }
 
-// See https://github.com/rust-lang/rustfmt/blob/ee2bed96d60fd7e46b1fb868f6a8f27e3a8058d0/src/macros.rs for justification for use of the `,` here
 #[macro_export]
-macro_rules! statements {
-    ($block: ident, if ($val: expr) {$($then: tt)*} $(, $($tt: tt)*)?) => {
+macro_rules! statement {
+    ($block: ident, if ($val: expr) {$($then: stmt);* $(;)?}) => {
         $block.if_(
             $val,
+            #[allow(redundant_semicolons)]
             |$block| {
-                statements!($block, $($then)*)
+                $($then);*;
             },
-            |$block| {},
-        );
-        $(statements!($block, $($tt)*))?
+            |_| {},
+        )
     };
-    ($block: ident, if ($val: expr) {$then: expr} else {$else_block: expr} $(,$($tt: tt)+)?) => {
+    ($block: ident, if ($val: expr) {$($then: stmt);* $(;)?} else {$($else_block: stmt);* $(;)?}) => {
         $block.if_(
             $val,
+            #[allow(redundant_semicolons)]
             |$block| {
-                $then;
+                $($then;)*
             },
+            #[allow(redundant_semicolons)]
             |$block| {
-                $else_block;
+                $($else_block;)*
             },
-        );
-        $(statements!($block, $($tt)+))?
+        )
     };
-    ($block: ident, let $name: ident = $expr: expr $(, $($tt: tt)*)?) => {
+    ($block: ident, let $name: ident = $expr: expr) => {
         let $name = ($expr).named(stringify!($name));
-        $(statements!($block, $($tt)+))?
     };
 }
