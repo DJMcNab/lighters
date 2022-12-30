@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::{ToType, Value};
 
 pub mod compute {
@@ -51,10 +49,6 @@ impl<T: BoundArgument> ToType for T {
 
 impl<'a, T: BoundArgument> Value<'a, T> {
     pub fn inner(&self) -> Value<'a, T::Inner> {
-        Value {
-            expr: self.expr,
-            fn_cx: self.fn_cx.clone(),
-            val: PhantomData,
-        }
+        self.with_type()
     }
 }

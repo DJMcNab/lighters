@@ -1,12 +1,13 @@
 pub mod arguments;
+mod block;
 pub mod types;
+pub mod value;
 
 use std::cell::RefCell;
-use std::marker::PhantomData;
-use std::ops::Deref;
 use std::rc::Rc;
 
-use naga::{Arena, Block, Constant, Handle, Statement};
+use block::BlockContext;
+use naga::{Constant, Handle, Statement};
 use naga::{EntryPoint, Expression, Function, Module, Span};
 
 /// We unfortunately need to use a null span for all operations, because naga only understands single-file
@@ -21,38 +22,9 @@ const SPAN: Span = Span::UNDEFINED;
 
 use types::ToConstant;
 use types::TypeMap;
+
 pub use types::{ToType, TypeRegistry};
-
-// Taken from naga/src/front/lib.rs
-/// Helper class to emit expressions
-#[allow(dead_code)]
-#[derive(Default, Debug)]
-struct Emitter {
-    start_len: Option<usize>,
-}
-
-#[allow(dead_code)]
-impl Emitter {
-    fn start(&mut self, arena: &Arena<crate::Expression>) {
-        if self.start_len.is_some() {
-            unreachable!("Emitting has already started!");
-        }
-        self.start_len = Some(arena.len());
-        println!("Started");
-    }
-    #[must_use]
-    #[track_caller]
-    fn finish(&mut self, arena: &Arena<crate::Expression>) -> Option<crate::Statement> {
-        println!("Finished");
-        let start_len = self.start_len.take().unwrap();
-        if start_len != arena.len() {
-            let range = arena.range_from(start_len);
-            Some(crate::Statement::Emit(range))
-        } else {
-            None
-        }
-    }
-}
+pub use value::Value;
 
 macro_rules! Let {
     ($name: ident = $val: expr) => {
@@ -60,19 +32,11 @@ macro_rules! Let {
     };
 }
 
+#[derive(Default)]
 pub struct ModuleContext {
     module: Module,
     type_map: TypeMap,
     // functions: FunctionMap
-}
-
-impl Default for ModuleContext {
-    fn default() -> Self {
-        Self {
-            module: Default::default(),
-            type_map: Default::default(),
-        }
-    }
 }
 
 impl ModuleContext {
@@ -161,129 +125,24 @@ impl<'a> FnCx<'a> {
     ) -> Handle<Constant> {
         self.with_module_cx(|module| module.registry().register_constant_named(val, name))
     }
-    pub fn const_<T: ToConstant + ToType>(&self, val: T) -> Value<'a, T> {
+    pub fn const_<T: ToConstant + ToType>(&self, val: T) -> value::Value<'a, T> {
         let constant = self.add_constant(val);
 
-        Value {
-            expr: self.add_expression(Expression::Constant(constant)),
-            fn_cx: self.clone(),
-            val: PhantomData,
-        }
+        Value::new(Expression::Constant(constant), &self)
     }
 }
-
-pub struct BlockContext<'a> {
-    function: FnCx<'a>,
-    block: Block,
-    emitter: Emitter,
-}
-
-impl<'a> BlockContext<'a> {
-    fn new(ctx: FnCx<'a>) -> BlockContext<'a> {
-        let mut res = BlockContext {
-            function: ctx,
-            block: Default::default(),
-            emitter: Default::default(),
-        };
-        res.start();
-        res
-    }
-
-    fn add_statement(&mut self, stmt: naga::Statement) {
-        self.emit();
-        self.block.push(stmt, SPAN);
-        self.start();
-    }
-
-    fn start(&mut self) {
-        self.function
-            .with_function(|f| self.emitter.start(&f.expressions));
-    }
-    fn emit(&mut self) {
-        self.function.with_function(|f| {
-            let Some(statement) = self.emitter.finish(&f.expressions) else {return};
-            self.block.push(statement, SPAN);
-        });
-    }
-
-    fn if_(
-        &mut self,
-        condition: Value<bool>,
-        then: impl FnOnce(&mut BlockContext),
-        else_: impl FnOnce(&mut BlockContext),
-    ) {
-        self.emit();
-        let mut then_block = BlockContext::new(self.function.clone());
-        then(&mut then_block);
-        then_block.emit();
-        let mut else_block = BlockContext::new(self.function.clone());
-        else_(&mut else_block);
-        else_block.emit();
-        self.start();
-        self.add_statement(Statement::If {
-            condition: condition.expr,
-            accept: then_block.block,
-            reject: else_block.block,
-        });
-    }
-}
-
-// No need for DerefMut, since `FnCx` only has & methods anyway
-impl<'a> Deref for BlockContext<'a> {
-    type Target = FnCx<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.function
-    }
-}
-
-pub struct Value<'a, T: ToType> {
-    expr: Handle<Expression>,
-    fn_cx: FnCx<'a>,
-    val: PhantomData<fn() -> T>,
-}
-
-impl<'a, T: ToType> Value<'a, T> {
-    fn with_expression<U: ToType>(&self, expression: Expression) -> Value<'a, U> {
-        Value {
-            expr: self.fn_cx.add_expression(expression),
-            fn_cx: self.fn_cx.clone(),
-            val: PhantomData,
-        }
-    }
-
-    fn named(&self, name: impl Into<String>) -> Option<String> {
-        self.fn_cx
-            .with_function(|f| f.named_expressions.insert(self.expr, name.into()))
-    }
-}
-
-impl<'a> std::ops::Add for Value<'a, u32> {
-    type Output = Value<'a, u32>;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        self.with_expression(Expression::Binary {
-            op: naga::BinaryOperator::Add,
-            left: self.expr,
-            right: rhs.expr,
-        })
-    }
-}
-
-pub use Value as V;
 
 pub fn module() -> Module {
     let mut module_cx = ModuleContext::default();
 
     module_cx.function(|cx| {
-        cx.if_(
-            cx.const_(true),
-            |cx| {
-                Let!(_true_result = cx.const_(1u32) + cx.const_(2u32));
+        statements!(
+            cx,
+            if (cx.const_(true)) {
+                let _true_result = cx.const_(1u32) + cx.const_(2u32)
             },
-            |cx| {
-                Let!(_else_result = cx.const_(4u32) + cx.const_(3u32));
-            },
+            if (cx.const_(true)) {
+            }
         );
     });
 
