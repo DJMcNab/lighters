@@ -7,6 +7,5 @@ edition = "2021"
 
 [dependencies]
 glam = "0.22.0"
-id-arena = "2.2.1"
 # We include wgsl-in *only* for rust-analyzer browsing
 naga = { version = "0.10.0", features = ["span", "wgsl-out", "wgsl-in"] }
