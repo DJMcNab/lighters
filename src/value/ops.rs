@@ -45,12 +45,12 @@ macro_rules! binop {
         // Combinations needed: l + r; &l + r; l + &r; &l + &r; l + const; &l + const
 
         // This is the base implementation, other implementations all call into this
-        impl<'a, L: ToType + ValueBinOp<R>, R: ToType + ToConstant> $trait<&Value<'a, R>>
-            for &Value<'a, L>
+        impl<'l,'r, L: ToType + ValueBinOp<R>, R: ToType + ToConstant> $trait<&Value<'r, R>>
+            for &Value<'l, L>
         {
-            type Output = Value<'a, L>;
+            type Output = Value<'l, L>;
 
-            fn $fn_name(self, rhs: &Value<'a, R>) -> Self::Output {
+            fn $fn_name(self, rhs: &Value<'r, R>) -> Self::Output {
                 self.with_expression(Expression::Binary {
                     op: naga::BinaryOperator::$operation,
                     left: self.expr,
@@ -58,31 +58,31 @@ macro_rules! binop {
                 })
             }
         }
-        impl<'a, L: ToType + ValueBinOp<R>, R: ToType + ToConstant> $trait<Value<'a, R>>
-            for &Value<'a, L>
+        impl<'l, 'r, L: ToType + ValueBinOp<R>, R: ToType + ToConstant> $trait<Value<'r, R>>
+            for &Value<'l, L>
         {
-            type Output = Value<'a, L>;
+            type Output = Value<'l, L>;
 
-            fn $fn_name(self, rhs: Value<'a, R>) -> Self::Output {
+            fn $fn_name(self, rhs: Value<'r, R>) -> Self::Output {
                 self $op &rhs
             }
         }
-        impl<'a, L: ToType + ValueBinOp<R>, R: ToType + ToConstant> $trait<&Value<'a, R>>
-            for Value<'a, L>
+        impl<'l, 'r, L: ToType + ValueBinOp<R>, R: ToType + ToConstant> $trait<&Value<'r, R>>
+            for Value<'l, L>
         {
-            type Output = Value<'a, L>;
+            type Output = Value<'l, L>;
 
-            fn $fn_name(self, rhs: &Value<'a, R>) -> Self::Output {
+            fn $fn_name(self, rhs: &Value<'r, R>) -> Self::Output {
                 &self $op rhs
             }
         }
 
-        impl<'a, L: ToType + ValueBinOp<R>, R: ToType + ToConstant> $trait<Value<'a, R>>
-            for Value<'a, L>
+        impl<'l,'r, L: ToType + ValueBinOp<R>, R: ToType + ToConstant> $trait<Value<'r, R>>
+            for Value<'l, L>
         {
-            type Output = Value<'a, L>;
+            type Output = Value<'l, L>;
 
-            fn $fn_name(self, rhs: Value<'a, R>) -> Self::Output {
+            fn $fn_name(self, rhs: Value<'r, R>) -> Self::Output {
                 &self $op &rhs
             }
         }

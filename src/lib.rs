@@ -3,11 +3,13 @@ mod functions;
 pub mod types;
 pub mod value;
 
+use std::any::TypeId;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use block::BlockContext;
-use naga::{Constant, Handle, Statement};
+use functions::{FunctionMap, FunctionReturn, Returned, ShaderFunction};
+use naga::{Constant, FunctionArgument, FunctionResult, Handle, Statement};
 use naga::{EntryPoint, Expression, Function, Module, Span};
 
 /// We unfortunately need to use a null span for all operations, because naga only understands single-file
@@ -36,7 +38,7 @@ macro_rules! Let {
 pub struct ModuleContext {
     module: Module,
     type_map: TypeMap,
-    // functions: FunctionMap
+    functions: FunctionMap,
 }
 
 impl ModuleContext {
@@ -51,6 +53,41 @@ struct FunctionContext<'a> {
 }
 
 impl ModuleContext {
+    fn add_function<'a, F: ShaderFunction<'a, M, A> + 'static, M, A>(
+        &mut self,
+        f: F,
+    ) -> Handle<Function> {
+        if let Some(existing) = self.functions.get(&TypeId::of::<F>()) {
+            return *existing;
+        }
+        let mut function = Function::default();
+        let mut registry = self.registry();
+        function.arguments = F::argument_types(&mut registry)
+            .into_iter()
+            .map(|ty| FunctionArgument {
+                ty,
+                name: None,
+                binding: None,
+            })
+            .collect();
+        function.result = <F::Return as FunctionReturn>::return_type(&mut registry)
+            .map(|ty| FunctionResult { ty, binding: None });
+        function.name = Some(std::any::type_name::<F>().to_string());
+        {
+            let fn_cx = FnCx::new(FunctionContext {
+                module: &mut *self,
+                function: &mut function,
+            });
+            let mut block_ctx = BlockContext::new(fn_cx);
+            f.call(&mut block_ctx);
+            block_ctx.emit();
+            function.body = block_ctx.block;
+        }
+        let func = self.module.functions.append(function, SPAN);
+        self.functions.insert(TypeId::of::<F>(), func);
+        func
+    }
+
     fn function(&mut self, f: impl FnOnce(&mut BlockContext)) -> Handle<Function> {
         let mut function = Function::default();
 
@@ -136,6 +173,20 @@ pub fn module() -> Module {
     use crate::statement as s;
     let mut module_cx = ModuleContext::default();
 
+    module_cx.add_function(test_fn);
+    module_cx.add_function(test_fn);
+    module_cx.add_function(
+        |ctx: &mut BlockContext, a: Value<'_, u32>, b: Value<'_, u32>| {
+            let _ = a + b;
+        },
+    );
+
+    module_cx.add_function(
+        |ctx: &mut BlockContext, a: Value<'_, u32>, b: Value<'_, u32>| {
+            let _ = a + b;
+        },
+    );
+
     module_cx.function(|cx| {
         Let!(_true_result = cx.const_(1u32) + cx.const_(2u32));
         s!(
@@ -150,4 +201,8 @@ pub fn module() -> Module {
     });
 
     module_cx.module
+}
+
+fn test_fn<'a>(arg: &mut BlockContext<'a>, a: Value<'a, u32>, b: Value<'a, u32>) -> Returned<u32> {
+    (a + b).as_return()
 }
