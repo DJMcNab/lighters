@@ -177,13 +177,14 @@ pub fn module() -> Module {
     module_cx.add_function(test_fn);
     module_cx.add_function(
         |ctx: &mut BlockContext, a: Value<'_, u32>, b: Value<'_, u32>| {
-            let _ = a + b;
+            Let!(res_1 = a + b);
         },
     );
 
     module_cx.add_function(
         |ctx: &mut BlockContext, a: Value<'_, u32>, b: Value<'_, u32>| {
-            let _ = a + b;
+            Let!(res = a + b);
+            res.as_return()
         },
     );
 
