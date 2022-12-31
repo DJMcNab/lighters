@@ -7,13 +7,14 @@ use std::{
 
 use naga::{Expression, Function, Handle, Statement, Type};
 
-use crate::{block::BlockContext, ToType, TypeRegistry, Value};
+use crate::{block::BlockContext, FnCx, ToType, TypeRegistry, Value};
 
 mod entry_point;
 
 pub trait ShaderFunction<'a, Marker, Args>: Sized {
     type Return: FunctionReturn;
     fn argument_types(registry: &mut TypeRegistry) -> Vec<Handle<Type>>;
+    fn argument_expressions(args: Args) -> Vec<Handle<Expression>>;
 
     fn call(self, block: &mut BlockContext);
 }
@@ -23,6 +24,10 @@ pub struct FnItem;
 pub trait FunctionReturn {
     fn return_type(registry: &mut TypeRegistry) -> Option<Handle<Type>>;
     fn return_statement(&self) -> Option<naga::Statement>;
+
+    type RetVal<'a>;
+    fn return_value<'a>(cx: &FnCx<'a>, function: Handle<Function>) -> Self::RetVal<'a>;
+    fn return_expression<'a>(ret: &Self::RetVal<'a>) -> Option<Handle<Expression>>;
 }
 
 impl<T: ToType> FunctionReturn for Returned<T> {
@@ -34,6 +39,14 @@ impl<T: ToType> FunctionReturn for Returned<T> {
             value: Some(self.expr),
         })
     }
+    type RetVal<'a> = Value<'a, T>;
+    fn return_value<'a>(cx: &FnCx<'a>, function: Handle<Function>) -> Self::RetVal<'a> {
+        Value::new(Expression::CallResult(function), cx)
+    }
+
+    fn return_expression<'a>(ret: &Self::RetVal<'a>) -> Option<Handle<Expression>> {
+        Some(ret.expr())
+    }
 }
 impl FunctionReturn for () {
     fn return_type(_: &mut TypeRegistry) -> Option<Handle<Type>> {
@@ -42,8 +55,16 @@ impl FunctionReturn for () {
     fn return_statement(&self) -> Option<naga::Statement> {
         None
     }
+
+    type RetVal<'a> = ();
+    fn return_value<'a>(_: &FnCx<'a>, _: Handle<Function>) -> Self::RetVal<'a> {}
+    fn return_expression<'a>(_: &Self::RetVal<'a>) -> Option<Handle<Expression>> {
+        None
+    }
 }
 
+/// Because normal values contain a [`crate::FnCx`],
+#[must_use]
 pub struct Returned<T: ToType> {
     expr: Handle<Expression>,
     val: PhantomData<T>,
@@ -81,6 +102,13 @@ macro_rules! impl_function {
                 if let Some(stmt) = ret.return_statement() {
                     block.add_statement(stmt);
                 }
+            }
+            fn argument_expressions(args: ($(Value<'a, $idents>,)*))->Vec<Handle<Expression>> {
+                #[allow(non_snake_case)]
+                let ($($idents,)*) = args;
+                vec![
+                    $($idents.expr()),*
+                ]
             }
         }
     };

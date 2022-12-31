@@ -1,7 +1,10 @@
 use std::ops::Deref;
 
 use self::emitter::Emitter;
-use crate::{FnCx, Value, SPAN};
+use crate::{
+    functions::{FunctionReturn, ShaderFunction},
+    FnCx, Value, SPAN,
+};
 use naga::{Block, Statement};
 
 mod emitter {
@@ -65,10 +68,32 @@ impl<'a> BlockContext<'a> {
         });
     }
 
+    fn add_statement_raw(&mut self, stmt: naga::Statement) {
+        self.block.push(stmt, SPAN);
+    }
+
     pub fn add_statement(&mut self, stmt: naga::Statement) {
         self.emit();
-        self.block.push(stmt, SPAN);
+        self.add_statement_raw(stmt);
         self.start();
+    }
+
+    pub fn call_function<F: ShaderFunction<'a, M, A> + 'static, M, A>(
+        &mut self,
+        f: F,
+        args: A,
+    ) -> <F::Return as FunctionReturn>::RetVal<'a> {
+        let function = self.with_module_cx(|module| module.add_function(f));
+        let return_val = <F::Return as FunctionReturn>::return_value(&self, function);
+        let return_expr = <F::Return as FunctionReturn>::return_expression(&return_val);
+        self.add_statement_raw(Statement::Call {
+            function,
+            arguments: F::argument_expressions(args),
+            result: return_expr,
+        });
+        self.emit();
+        self.start();
+        return_val
     }
 
     pub fn if_(

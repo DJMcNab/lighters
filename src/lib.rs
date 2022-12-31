@@ -7,7 +7,7 @@ use std::any::TypeId;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block::BlockContext;
+pub use block::BlockContext;
 use functions::{FunctionMap, FunctionReturn, Returned, ShaderFunction};
 use naga::{Constant, FunctionArgument, FunctionResult, Handle, Statement};
 use naga::{EntryPoint, Expression, Function, Module, Span};
@@ -88,21 +88,6 @@ impl ModuleContext {
         func
     }
 
-    fn function(&mut self, f: impl FnOnce(&mut BlockContext)) -> Handle<Function> {
-        let mut function = Function::default();
-
-        {
-            let fn_cx = FnCx::new(FunctionContext {
-                module: self,
-                function: &mut function,
-            });
-            let mut block_ctx = BlockContext::new(fn_cx);
-            f(&mut block_ctx);
-            block_ctx.emit();
-            function.body = block_ctx.block;
-        }
-        self.module.functions.append(function, SPAN)
-    }
     fn entry_point(&mut self, f: impl FnOnce(&mut BlockContext)) {
         let mut function = Function::default();
 
@@ -170,40 +155,24 @@ impl<'a> FnCx<'a> {
 }
 
 pub fn module() -> Module {
-    use crate::statement as s;
     let mut module_cx = ModuleContext::default();
 
-    module_cx.add_function(test_fn);
-    module_cx.add_function(test_fn);
+    // module_cx.add_function(test_fn);
+    // module_cx.add_function(test_fn);
     module_cx.add_function(
-        |ctx: &mut BlockContext, a: Value<'_, u32>, b: Value<'_, u32>| {
+        |_cx: &mut BlockContext, a: Value<'_, u32>, b: Value<'_, u32>| {
             Let!(res_1 = a + b);
         },
     );
 
-    module_cx.add_function(
-        |ctx: &mut BlockContext, a: Value<'_, u32>, b: Value<'_, u32>| {
-            Let!(res = a + b);
-            res.as_return()
-        },
-    );
-
-    module_cx.function(|cx| {
-        Let!(_true_result = cx.const_(1u32) + cx.const_(2u32));
-        s!(
-            cx,
-            if (cx.const_(true)) {
-                Let!(_x = &_true_result / 4);
-            } else {
-                Let!(_false_result = &_true_result + 5);
-            }
-        );
-        Let!(_true_result = cx.const_(1u32) % 2u32);
+    module_cx.add_function(|cx: &mut BlockContext| {
+        cx.call_function(test_fn, (cx.const_(1), cx.const_(3)))
+            .as_return()
     });
 
     module_cx.module
 }
 
-fn test_fn<'a>(arg: &mut BlockContext<'a>, a: Value<'a, u32>, b: Value<'a, u32>) -> Returned<u32> {
+fn test_fn<'a>(_cx: &mut BlockContext<'a>, a: Value<'a, u32>, b: Value<'a, u32>) -> Returned<u32> {
     (a + b).as_return()
 }
