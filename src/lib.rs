@@ -165,9 +165,15 @@ pub fn module() -> Module {
         },
     );
 
-    module_cx.add_function(|cx: &mut BlockContext| {
-        cx.call_function(test_fn, (cx.const_(1), cx.const_(3)))
-            .as_return()
+    module_cx.add_function(|cx: &mut BlockContext| -> Returned<u32> {
+        let x = statement!(cx, test_fn(cx.const_(1), cx.const_(3)));
+        statement!(
+            cx,
+            if (cx.const_(true)) {
+                statement!(cx, return x);
+            }
+        );
+        x.as_return()
     });
 
     module_cx.module

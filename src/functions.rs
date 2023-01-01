@@ -5,7 +5,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use naga::{Expression, Function, Handle, Statement, Type};
+use naga::{Expression, Function, Handle, Type};
 
 use crate::{block::BlockContext, FnCx, ToType, TypeRegistry, Value};
 
@@ -14,7 +14,7 @@ mod entry_point;
 pub trait ShaderFunction<'a, Marker, Args>: Sized {
     type Return: FunctionReturn;
     fn argument_types(registry: &mut TypeRegistry) -> Vec<Handle<Type>>;
-    fn argument_expressions(args: Args) -> Vec<Handle<Expression>>;
+    fn argument_expressions(args: &Args) -> Vec<Handle<Expression>>;
 
     fn call(self, block: &mut BlockContext);
 }
@@ -23,7 +23,7 @@ pub struct FnItem;
 
 pub trait FunctionReturn {
     fn return_type(registry: &mut TypeRegistry) -> Option<Handle<Type>>;
-    fn return_statement(&self) -> Option<naga::Statement>;
+    fn expression(&self) -> Option<Handle<Expression>>;
 
     type RetVal<'a>;
     fn return_value<'a>(cx: &FnCx<'a>, function: Handle<Function>) -> Self::RetVal<'a>;
@@ -34,10 +34,8 @@ impl<T: ToType> FunctionReturn for Returned<T> {
     fn return_type(registry: &mut TypeRegistry) -> Option<Handle<Type>> {
         Some(registry.register_type::<T>())
     }
-    fn return_statement(&self) -> Option<Statement> {
-        Some(Statement::Return {
-            value: Some(self.expr),
-        })
+    fn expression(&self) -> Option<Handle<Expression>> {
+        Some(self.expr)
     }
     type RetVal<'a> = Value<'a, T>;
     fn return_value<'a>(cx: &FnCx<'a>, function: Handle<Function>) -> Self::RetVal<'a> {
@@ -52,7 +50,7 @@ impl FunctionReturn for () {
     fn return_type(_: &mut TypeRegistry) -> Option<Handle<Type>> {
         None
     }
-    fn return_statement(&self) -> Option<naga::Statement> {
+    fn expression(&self) -> Option<Handle<Expression>> {
         None
     }
 
@@ -68,6 +66,11 @@ impl FunctionReturn for () {
 pub struct Returned<T: ToType> {
     expr: Handle<Expression>,
     val: PhantomData<T>,
+}
+
+// Allow using return statements in functions
+impl<T: ToType> Into<()> for Returned<T> {
+    fn into(self) {}
 }
 
 impl<'a, T: ToType> Value<'a, T> {
@@ -99,11 +102,11 @@ macro_rules! impl_function {
                     count += 1;
                 )*
                 let ret = self(block, $($idents),*);
-                if let Some(stmt) = ret.return_statement() {
-                    block.add_statement(stmt);
+                if let Some(expr) = ret.expression() {
+                    let _ = block.return_(&Value::<bool>::from_handle(expr, &block));
                 }
             }
-            fn argument_expressions(args: ($(Value<'a, $idents>,)*))->Vec<Handle<Expression>> {
+            fn argument_expressions(args: &($(Value<'a, $idents>,)*))->Vec<Handle<Expression>> {
                 #[allow(non_snake_case)]
                 let ($($idents,)*) = args;
                 vec![

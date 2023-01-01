@@ -18,12 +18,16 @@ impl<'a, T: ToType> Value<'a, T> {
         self.expr
     }
 
-    pub(crate) fn with_expression<U: ToType>(&self, expression: Expression) -> Value<'a, U> {
+    pub(crate) fn from_handle(expr: Handle<Expression>, fn_cx: &FnCx<'a>) -> Self {
         Value {
-            expr: self.fn_cx.add_expression(expression),
-            fn_cx: self.fn_cx.clone(),
+            expr,
+            fn_cx: fn_cx.clone(),
             val: PhantomData,
         }
+    }
+
+    pub(crate) fn with_expression<U: ToType>(&self, expression: Expression) -> Value<'a, U> {
+        Value::<U>::from_handle(self.fn_cx.add_expression(expression), &self.fn_cx)
     }
 
     pub(crate) fn with_type<U: ToType>(&self) -> Value<'a, U> {
