@@ -1,49 +1,14 @@
 use std::ops::Deref;
 
-use self::emitter::Emitter;
 use crate::{
     functions::{FunctionReturn, Returned, ShaderFunction},
     FnCx, ToType, Value, SPAN,
 };
 use naga::{Block, Statement};
 
-mod emitter {
-    use naga::Arena;
-
-    // Taken from naga/src/front/lib.rs
-    /// Helper class to emit expressions
-    #[allow(dead_code)]
-    #[derive(Default, Debug)]
-    pub(super) struct Emitter {
-        start_len: Option<usize>,
-    }
-
-    #[allow(dead_code)]
-    impl Emitter {
-        pub fn start(&mut self, arena: &Arena<crate::Expression>) {
-            if self.start_len.is_some() {
-                unreachable!("Emitting has already started!");
-            }
-            self.start_len = Some(arena.len());
-        }
-        #[must_use]
-        #[track_caller]
-        pub fn finish(&mut self, arena: &Arena<crate::Expression>) -> Option<crate::Statement> {
-            let start_len = self.start_len.take().unwrap();
-            if start_len != arena.len() {
-                let range = arena.range_from(start_len);
-                Some(crate::Statement::Emit(range))
-            } else {
-                None
-            }
-        }
-    }
-}
-
 pub struct BlockContext<'a> {
     function: FnCx<'a>,
     pub(crate) block: Block,
-    emitter: Emitter,
     has_returned: bool,
 }
 
@@ -52,7 +17,6 @@ impl<'a> BlockContext<'a> {
         let mut res = BlockContext {
             function: ctx,
             block: Default::default(),
-            emitter: Default::default(),
             has_returned: false,
         };
         res.start();
@@ -61,24 +25,22 @@ impl<'a> BlockContext<'a> {
 
     fn start(&mut self) {
         self.function
-            .with_function(|f| self.emitter.start(&f.expressions));
+            .with_full_context(|ctx| ctx.emitter.start(&ctx.function.expressions));
     }
     pub(crate) fn emit(&mut self) {
-        self.function.with_function(|f| {
-            let Some(statement) = self.emitter.finish(&f.expressions) else {return};
-            self.block.push(statement, SPAN);
+        self.function.with_full_context(|ctx| {
+            let statements = ctx.emitter.finish(&ctx.function.expressions);
+            for statement in statements {
+                self.block.push(statement, SPAN);
+            }
         });
-    }
-
-    fn add_statement_raw(&mut self, stmt: naga::Statement) {
-        self.block.push(stmt, SPAN);
     }
 
     // Most statements need their arguments to be emitted *before* being called
     pub fn add_statement(&mut self, stmt: naga::Statement) {
         self.emit();
         self.start();
-        self.add_statement_raw(stmt);
+        self.block.push(stmt, SPAN);
     }
 
     pub fn call_function<F: ShaderFunction<'a, M, A> + 'static, M, A>(
@@ -87,7 +49,6 @@ impl<'a> BlockContext<'a> {
         args: &A,
     ) -> <F::Return as FunctionReturn>::RetVal<'a> {
         let function = self.with_module_cx(|module| module.add_function(f));
-        // We need to emit the argument expressions
         self.emit();
         let return_val = <F::Return as FunctionReturn>::return_value(&self, function);
         // The return expression, however, does not need to be emitted, as it is instead evaluated 'when' the call expression occurs

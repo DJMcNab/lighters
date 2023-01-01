@@ -1,4 +1,5 @@
 mod block;
+mod emitter;
 mod functions;
 pub mod types;
 pub mod value;
@@ -8,8 +9,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub use block::BlockContext;
+use emitter::Emitter;
 use functions::{FunctionMap, FunctionReturn, Returned, ShaderFunction};
-use naga::{Constant, FunctionArgument, FunctionResult, Handle, Statement};
+use naga::{Constant, FunctionArgument, FunctionResult, Handle};
 use naga::{EntryPoint, Expression, Function, Module, Span};
 
 /// We unfortunately need to use a null span for all operations, because naga only understands single-file
@@ -50,6 +52,7 @@ impl ModuleContext {
 struct FunctionContext<'a> {
     module: &'a mut ModuleContext,
     function: &'a mut Function,
+    emitter: Emitter,
 }
 
 impl ModuleContext {
@@ -77,6 +80,7 @@ impl ModuleContext {
             let fn_cx = FnCx::new(FunctionContext {
                 module: &mut *self,
                 function: &mut function,
+                emitter: Default::default(),
             });
             let mut block_ctx = BlockContext::new(fn_cx);
             f.call(&mut block_ctx);
@@ -95,6 +99,7 @@ impl ModuleContext {
             let fn_cx = FnCx::new(FunctionContext {
                 module: self,
                 function: &mut function,
+                emitter: Default::default(),
             });
             let mut block_ctx = BlockContext::new(fn_cx);
             f(&mut block_ctx);
@@ -122,16 +127,30 @@ impl<'a> FnCx<'a> {
 }
 
 impl<'a> FnCx<'a> {
+    fn with_full_context<R>(&self, f: impl FnOnce(&mut FunctionContext) -> R) -> R {
+        f(&mut self.0.borrow_mut())
+    }
+
     pub fn with_function<R>(&self, f: impl FnOnce(&mut Function) -> R) -> R {
-        f(&mut self.0.borrow_mut().function)
+        self.with_full_context(|ctx| f(&mut ctx.function))
     }
 
     pub fn with_module_cx<R>(&self, f: impl FnOnce(&mut ModuleContext) -> R) -> R {
-        f(&mut self.0.borrow_mut().module)
+        self.with_full_context(|ctx| f(&mut ctx.module))
     }
 
     pub fn add_expression(&self, expression: Expression) -> Handle<Expression> {
-        self.with_function(|f| f.expressions.append(expression, SPAN))
+        self.with_full_context(|ctx| {
+            let needs_no_emit = expression.needs_pre_emit();
+            if needs_no_emit {
+                ctx.emitter.pause(&ctx.function.expressions);
+            }
+            let handle = ctx.function.expressions.append(expression, SPAN);
+            if needs_no_emit {
+                ctx.emitter.start(&ctx.function.expressions);
+            }
+            handle
+        })
     }
 
     pub fn add_constant<T: ToConstant>(&self, val: T) -> Handle<Constant> {
@@ -156,14 +175,6 @@ impl<'a> FnCx<'a> {
 
 pub fn module() -> Module {
     let mut module_cx = ModuleContext::default();
-
-    // module_cx.add_function(test_fn);
-    // module_cx.add_function(test_fn);
-    module_cx.add_function(
-        |_cx: &mut BlockContext, a: Value<'_, u32>, b: Value<'_, u32>| {
-            Let!(res_1 = a + b);
-        },
-    );
 
     module_cx.add_function(|cx: &mut BlockContext| -> Returned<u32> {
         let x = statement!(cx, test_fn(cx.const_(1), cx.const_(3)));
