@@ -55,6 +55,25 @@ struct FunctionContext<'a> {
     emitter: Emitter,
 }
 
+struct EntryPointContext<'a> {
+    module: &'a mut ModuleContext,
+    function: &'a mut Function,
+}
+
+impl<'a> EntryPointContext<'a> {
+    fn body(&mut self, f: impl FnOnce(&mut BlockContext)) {
+        let fn_cx = FnCx::new(FunctionContext {
+            module: &mut self.module,
+            function: &mut self.function,
+            emitter: Emitter::default(),
+        });
+        let mut block_ctx = BlockContext::new(fn_cx);
+        f(&mut block_ctx);
+        block_ctx.emit();
+        self.function.body = block_ctx.block;
+    }
+}
+
 impl ModuleContext {
     fn add_function<'a, F: ShaderFunction<'a, M, A> + 'static, M, A>(
         &mut self,
@@ -92,7 +111,12 @@ impl ModuleContext {
         func
     }
 
-    fn entry_point(&mut self, f: impl FnOnce(&mut BlockContext)) {
+    fn entry_point(
+        &mut self,
+        name: impl Into<String>,
+        workgroup_size: [u32; 3],
+        f: impl FnOnce(&mut BlockContext),
+    ) {
         let mut function = Function::default();
 
         {
@@ -107,10 +131,10 @@ impl ModuleContext {
         }
 
         self.module.entry_points.push(EntryPoint {
-            name: "test".to_string(),
+            name: name.into(),
             stage: naga::ShaderStage::Compute,
             early_depth_test: None,
-            workgroup_size: [256, 1, 1],
+            workgroup_size,
             function,
         })
     }
@@ -159,6 +183,7 @@ impl<'a> FnCx<'a> {
             registry.register_constant(val)
         })
     }
+
     pub fn add_named_constant<T: ToConstant>(
         &self,
         val: T,

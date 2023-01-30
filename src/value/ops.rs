@@ -53,8 +53,8 @@ macro_rules! binop {
             fn $fn_name(self, rhs: &Value<'r, R>) -> Self::Output {
                 self.with_expression(Expression::Binary {
                     op: naga::BinaryOperator::$operation,
-                    left: self.expr,
-                    right: rhs.expr,
+                    left: self.expr(),
+                    right: rhs.expr(),
                 })
             }
         }
