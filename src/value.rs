@@ -1,3 +1,4 @@
+pub mod entry_point;
 mod ops;
 
 use super::FnCx;
@@ -23,11 +24,20 @@ impl ValueBacking {
     }
 }
 
-#[derive(Clone)]
 pub struct Value<'a, T: ToType> {
     expr: ValueBacking,
     fn_cx: FnCx<'a>,
     val: PhantomData<fn() -> T>,
+}
+
+impl<'a, T: ToType> Clone for Value<'a, T> {
+    fn clone(&self) -> Self {
+        Self {
+            expr: self.expr.clone(),
+            fn_cx: self.fn_cx.clone(),
+            val: self.val.clone(),
+        }
+    }
 }
 
 impl<'a, T: ToType> Value<'a, T> {
@@ -78,4 +88,35 @@ impl<'a, T: ToType> Value<'a, T> {
     pub(crate) fn new(expr: Expression, fn_cx: &FnCx<'a>) -> Self {
         Self::from_expr_handle(fn_cx.add_expression(expr), fn_cx)
     }
+}
+
+pub trait WrappingValue: 'static + Sized {
+    type Inner: ToType;
+}
+
+impl<T: WrappingValue> ToType for T {
+    fn naga_ty_inner(_: &mut crate::TypeRegistry) -> naga::TypeInner {
+        unimplemented!();
+    }
+
+    fn type_handle(registry: &mut crate::TypeRegistry) -> naga::Handle<naga::Type> {
+        registry.register_type::<<Self as WrappingValue>::Inner>()
+    }
+}
+
+impl<'a, T: WrappingValue> Value<'a, T> {
+    pub fn inner(&self) -> Value<'a, T::Inner> {
+        self.with_type()
+    }
+}
+
+#[macro_export]
+macro_rules! wrapper {
+    ($(#[$attrs: meta])* struct $type: ident: $inner: ty) => {
+        $(#[$attrs])*
+        pub struct $type;
+        impl $crate::value::WrappingValue for $type {
+            type Inner = $inner;
+        }
+    };
 }

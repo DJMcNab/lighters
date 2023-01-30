@@ -9,8 +9,6 @@ use naga::{Expression, Function, Handle, Type};
 
 use crate::{block::BlockContext, FnCx, ToType, TypeRegistry, Value};
 
-mod entry_point;
-
 pub trait ShaderFunction<'a, Marker, Args>: Sized {
     type Return: FunctionReturn;
     fn argument_types(registry: &mut TypeRegistry) -> Vec<Handle<Type>>;

@@ -28,7 +28,7 @@ use types::ToConstant;
 use types::TypeMap;
 
 pub use types::{ToType, TypeRegistry};
-pub use value::Value;
+pub use value::{entry_point, Value};
 
 macro_rules! Let {
     ($name: ident = $val: expr) => {
@@ -55,22 +55,32 @@ struct FunctionContext<'a> {
     emitter: Emitter,
 }
 
-struct EntryPointContext<'a> {
-    module: &'a mut ModuleContext,
-    function: &'a mut Function,
+pub struct EntryPointContext<'a> {
+    cx: FnCx<'a>,
+    has_body: bool,
+    workgroup_size: [u32; 3],
+    workgroup_size_expr: Option<Value<'a, entry_point::WorkgroupSize>>,
 }
 
 impl<'a> EntryPointContext<'a> {
-    fn body(&mut self, f: impl FnOnce(&mut BlockContext)) {
-        let fn_cx = FnCx::new(FunctionContext {
-            module: &mut self.module,
-            function: &mut self.function,
-            emitter: Emitter::default(),
-        });
-        let mut block_ctx = BlockContext::new(fn_cx);
+    pub fn workgroup_size(&mut self) -> Value<'a, entry_point::WorkgroupSize> {
+        if let Some(size) = &self.workgroup_size_expr {
+            return size.clone();
+        }
+        let size_constant = self.cx.add_constant(glam::UVec3::from(self.workgroup_size));
+        let value = Value::from_const_handle(size_constant, &self.cx);
+        self.workgroup_size_expr = Some(value.clone());
+        value
+    }
+
+    pub fn body(&mut self, f: impl FnOnce(&mut BlockContext<'a>)) {
+        assert!(!self.has_body, "Can only add one body to an entry point");
+        self.has_body = true;
+
+        let mut block_ctx = BlockContext::new(self.cx.clone());
         f(&mut block_ctx);
         block_ctx.emit();
-        self.function.body = block_ctx.block;
+        self.cx.with_function(|f| f.body = block_ctx.block);
     }
 }
 
@@ -111,23 +121,31 @@ impl ModuleContext {
         func
     }
 
-    fn entry_point(
+    #[track_caller]
+    pub fn entry_point(
         &mut self,
         name: impl Into<String>,
         workgroup_size: [u32; 3],
-        f: impl FnOnce(&mut BlockContext),
+        f: impl FnOnce(&mut EntryPointContext),
     ) {
         let mut function = Function::default();
 
         {
             let fn_cx = FnCx::new(FunctionContext {
-                module: self,
+                module: &mut *self,
                 function: &mut function,
                 emitter: Default::default(),
             });
-            let mut block_ctx = BlockContext::new(fn_cx);
-            f(&mut block_ctx);
-            function.body = block_ctx.block;
+            let mut ep_cx = EntryPointContext {
+                cx: fn_cx,
+                has_body: false,
+                workgroup_size,
+                workgroup_size_expr: None,
+            };
+            f(&mut ep_cx);
+            if !ep_cx.has_body {
+                panic!("Must add a body to an entry point. Call `body` on the provided EntryPointContext");
+            }
         }
 
         self.module.entry_points.push(EntryPoint {
@@ -201,20 +219,17 @@ impl<'a> FnCx<'a> {
 pub fn module() -> Module {
     let mut module_cx = ModuleContext::default();
 
-    module_cx.add_function(|cx: &mut BlockContext| -> Returned<u32> {
-        let x = statement!(cx, test_fn(cx.const_(1), cx.const_(3)));
-        statement!(
-            cx,
-            if (cx.const_(true)) {
-                statement!(cx, return x);
-            }
-        );
-        x.as_return()
+    module_cx.entry_point("main", [256, 1, 1], |ep| {
+        let workgroup_size = ep.workgroup_size();
+        ep.body(|cx| {
+            Let!(x = workgroup_size);
+            statement!(cx, identity(x));
+        })
     });
 
     module_cx.module
 }
 
-fn test_fn<'a>(_cx: &mut BlockContext<'a>, a: Value<'a, u32>, b: Value<'a, u32>) -> Returned<u32> {
-    (a + b).as_return()
+fn identity<'a, T: ToType>(_cx: &mut BlockContext<'a>, val: Value<'a, T>) -> Returned<T> {
+    (val).as_return()
 }
