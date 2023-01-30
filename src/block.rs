@@ -14,13 +14,19 @@ pub struct BlockContext<'a> {
 
 impl<'a> BlockContext<'a> {
     pub(crate) fn new(ctx: FnCx<'a>) -> BlockContext<'a> {
-        let mut res = BlockContext {
+        let mut res = Self::new_unstarted(ctx);
+        res.start();
+        res
+    }
+
+    /// Used when creating entry points, as argument expressions are created
+    /// before the block is created
+    pub(crate) fn new_unstarted(ctx: FnCx<'a>) -> BlockContext<'a> {
+        BlockContext {
             function: ctx,
             block: Default::default(),
             has_returned: false,
-        };
-        res.start();
-        res
+        }
     }
 
     fn start(&mut self) {

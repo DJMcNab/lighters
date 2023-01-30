@@ -63,6 +63,32 @@ pub struct EntryPointContext<'a> {
 }
 
 impl<'a> EntryPointContext<'a> {
+    pub fn body(&mut self, f: impl FnOnce(&mut BlockContext<'a>)) {
+        assert!(!self.has_body, "Can only add one body to an entry point");
+        self.has_body = true;
+
+        let mut block_ctx = BlockContext::new_unstarted(self.cx.clone());
+        f(&mut block_ctx);
+        block_ctx.emit();
+        self.cx.with_function(|f| f.body = block_ctx.block);
+    }
+
+    pub fn global_invocation_id(&mut self) -> Value<'a, entry_point::GlobalInvocationId> {
+        self.binding_argument(naga::Binding::BuiltIn(naga::BuiltIn::GlobalInvocationId))
+    }
+    pub fn local_invocation_id(&mut self) -> Value<'a, entry_point::LocalInvocationId> {
+        self.binding_argument(naga::Binding::BuiltIn(naga::BuiltIn::LocalInvocationId))
+    }
+    pub fn local_invocation_index(&mut self) -> Value<'a, entry_point::LocalInvocationIndex> {
+        self.binding_argument(naga::Binding::BuiltIn(naga::BuiltIn::LocalInvocationIndex))
+    }
+    pub fn work_group_id(&mut self) -> Value<'a, entry_point::WorkGroupId> {
+        self.binding_argument(naga::Binding::BuiltIn(naga::BuiltIn::WorkGroupId))
+    }
+    pub fn num_work_groups(&mut self) -> Value<'a, entry_point::NumWorkGroups> {
+        self.binding_argument(naga::Binding::BuiltIn(naga::BuiltIn::NumWorkGroups))
+    }
+
     pub fn workgroup_size(&mut self) -> Value<'a, entry_point::WorkgroupSize> {
         if let Some(size) = &self.workgroup_size_expr {
             return size.clone();
@@ -73,14 +99,21 @@ impl<'a> EntryPointContext<'a> {
         value
     }
 
-    pub fn body(&mut self, f: impl FnOnce(&mut BlockContext<'a>)) {
-        assert!(!self.has_body, "Can only add one body to an entry point");
-        self.has_body = true;
-
-        let mut block_ctx = BlockContext::new(self.cx.clone());
-        f(&mut block_ctx);
-        block_ctx.emit();
-        self.cx.with_function(|f| f.body = block_ctx.block);
+    fn binding_argument<T: ToType>(&mut self, binding: naga::Binding) -> Value<'a, T> {
+        let ty = self.cx.with_module_cx(|module| {
+            let mut registry = module.registry();
+            registry.register_type::<T>()
+        });
+        let index = self.cx.with_function(|f| {
+            let index = f.arguments.len();
+            f.arguments.push(FunctionArgument {
+                ty,
+                name: None,
+                binding: Some(binding),
+            });
+            index as u32
+        });
+        Value::new(Expression::FunctionArgument(index), &self.cx)
     }
 }
 
@@ -136,6 +169,7 @@ impl ModuleContext {
                 function: &mut function,
                 emitter: Default::default(),
             });
+            fn_cx.with_full_context(|e| e.emitter.start(&e.function.expressions));
             let mut ep_cx = EntryPointContext {
                 cx: fn_cx,
                 has_body: false,
@@ -221,9 +255,11 @@ pub fn module() -> Module {
 
     module_cx.entry_point("main", [256, 1, 1], |ep| {
         let workgroup_size = ep.workgroup_size();
+        let local_id = ep.local_invocation_id();
         ep.body(|cx| {
             Let!(x = workgroup_size);
             statement!(cx, identity(x));
+            statement!(cx, identity(local_id));
         })
     });
 
