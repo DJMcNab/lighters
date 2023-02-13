@@ -56,7 +56,7 @@ impl<'a> BlockContext<'a> {
     ) -> <F::Return as FunctionReturn>::RetVal<'a> {
         let function = self.with_module_cx(|module| module.add_function(f));
         self.emit();
-        let return_val = <F::Return as FunctionReturn>::return_value(&self, function);
+        let return_val = <F::Return as FunctionReturn>::return_value(self, function);
         // The return expression, however, does not need to be emitted, as it is instead evaluated 'when' the call expression occurs
         // Note that if the expression is emitted, this appears to be *fine*, although it does create a 'phony' expression
         let return_expr = <F::Return as FunctionReturn>::return_expression(&return_val);

@@ -21,7 +21,7 @@ pub trait ToType: 'static + Sized {
 
     fn type_handle(registry: &mut TypeRegistry) -> Handle<Type> {
         if let Some(ty) = registry.tys.get(&TypeId::of::<Self>()) {
-            return ty.clone();
+            return *ty;
         }
         let ty_val = Self::naga_ty(registry);
         registry.module.types.insert(ty_val, SPAN)
@@ -31,7 +31,7 @@ pub trait ToType: 'static + Sized {
 fn type_name_simple_of<T: 'static>() -> String {
     let name = std::any::type_name::<T>();
     let name_final = name.rsplit_terminator("::").next().unwrap();
-    name_final.replace("<", "_").replace(">", "_")
+    name_final.replace(['<', '>'], "_")
 }
 
 pub trait ToConstant: ToType {

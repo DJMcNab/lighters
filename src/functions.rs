@@ -25,7 +25,7 @@ pub trait FunctionReturn {
 
     type RetVal<'a>;
     fn return_value<'a>(cx: &FnCx<'a>, function: Handle<Function>) -> Self::RetVal<'a>;
-    fn return_expression<'a>(ret: &Self::RetVal<'a>) -> Option<Handle<Expression>>;
+    fn return_expression(ret: &Self::RetVal<'_>) -> Option<Handle<Expression>>;
 }
 
 impl<T: ToType> FunctionReturn for Returned<T> {
@@ -40,7 +40,7 @@ impl<T: ToType> FunctionReturn for Returned<T> {
         Value::new(Expression::CallResult(function), cx)
     }
 
-    fn return_expression<'a>(ret: &Self::RetVal<'a>) -> Option<Handle<Expression>> {
+    fn return_expression(ret: &Self::RetVal<'_>) -> Option<Handle<Expression>> {
         Some(ret.expr())
     }
 }
@@ -54,21 +54,22 @@ impl FunctionReturn for () {
 
     type RetVal<'a> = ();
     fn return_value<'a>(_: &FnCx<'a>, _: Handle<Function>) -> Self::RetVal<'a> {}
-    fn return_expression<'a>(_: &Self::RetVal<'a>) -> Option<Handle<Expression>> {
+    fn return_expression(_: &Self::RetVal<'_>) -> Option<Handle<Expression>> {
         None
     }
 }
 
-/// Because normal values contain a [`crate::FnCx`],
+/// Because normal values contain a [`crate::FnCx`], which has a lifetime.
+/// This makes returning these values (seem) impossible
 #[must_use]
 pub struct Returned<T: ToType> {
     expr: Handle<Expression>,
     val: PhantomData<T>,
 }
 
-// Allow using return statements in functions
-impl<T: ToType> Into<()> for Returned<T> {
-    fn into(self) {}
+/// Allow using return statements in functions
+impl<T: ToType> From<Returned<T>> for () {
+    fn from(_: Returned<T>) -> Self {}
 }
 
 impl<'a, T: ToType> Value<'a, T> {

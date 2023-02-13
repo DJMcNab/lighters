@@ -27,15 +27,15 @@ impl ValueBacking {
 pub struct Value<'a, T: ToType> {
     expr: ValueBacking,
     fn_cx: FnCx<'a>,
-    val: PhantomData<fn() -> T>,
+    marker: PhantomData<fn() -> T>,
 }
 
 impl<'a, T: ToType> Clone for Value<'a, T> {
     fn clone(&self) -> Self {
         Self {
-            expr: self.expr.clone(),
+            expr: self.expr,
             fn_cx: self.fn_cx.clone(),
-            val: self.val.clone(),
+            marker: self.marker,
         }
     }
 }
@@ -49,7 +49,7 @@ impl<'a, T: ToType> Value<'a, T> {
         Value {
             expr: ValueBacking::Expression(expr),
             fn_cx: fn_cx.clone(),
-            val: PhantomData,
+            marker: PhantomData,
         }
     }
 
@@ -57,7 +57,7 @@ impl<'a, T: ToType> Value<'a, T> {
         Value {
             expr: ValueBacking::Constant(const_),
             fn_cx: fn_cx.clone(),
-            val: PhantomData,
+            marker: PhantomData,
         }
     }
 
@@ -69,7 +69,7 @@ impl<'a, T: ToType> Value<'a, T> {
         Value {
             expr: self.expr,
             fn_cx: self.fn_cx.clone(),
-            val: PhantomData,
+            marker: PhantomData,
         }
     }
 

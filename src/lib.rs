@@ -229,11 +229,11 @@ impl<'a> FnCx<'a> {
     }
 
     pub fn with_function<R>(&self, f: impl FnOnce(&mut Function) -> R) -> R {
-        self.with_full_context(|ctx| f(&mut ctx.function))
+        self.with_full_context(|ctx| f(ctx.function))
     }
 
     pub fn with_module_cx<R>(&self, f: impl FnOnce(&mut ModuleContext) -> R) -> R {
-        self.with_full_context(|ctx| f(&mut ctx.module))
+        self.with_full_context(|ctx| f(ctx.module))
     }
 
     pub fn add_expression(&self, expression: Expression) -> Handle<Expression> {
@@ -267,7 +267,7 @@ impl<'a> FnCx<'a> {
     pub fn const_<T: ToConstant + ToType>(&self, val: T) -> value::Value<'a, T> {
         let constant = self.add_constant(val);
 
-        Value::new(Expression::Constant(constant), &self)
+        Value::new(Expression::Constant(constant), self)
     }
 }
 
@@ -288,5 +288,5 @@ pub fn module() -> Module {
 }
 
 fn identity<'a, T: ToType>(_cx: &mut BlockContext<'a>, val: Value<'a, T>) -> Returned<T> {
-    (val).as_return()
+    val.as_return()
 }
