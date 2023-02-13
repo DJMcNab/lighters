@@ -73,12 +73,15 @@ impl<'a> BlockContext<'a> {
         then: impl FnOnce(&mut BlockContext<'a>),
         else_: impl FnOnce(&mut BlockContext<'a>),
     ) {
+        // Make sure expressions in this block are included
+        self.emit();
         let mut then_block = BlockContext::new(self.function.clone());
         then(&mut then_block);
         then_block.emit();
         let mut else_block = BlockContext::new(self.function.clone());
         else_(&mut else_block);
         else_block.emit();
+        self.start();
         self.add_statement(Statement::If {
             condition: condition.expr(),
             accept: then_block.block,

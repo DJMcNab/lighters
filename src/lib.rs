@@ -238,12 +238,12 @@ impl<'a> FnCx<'a> {
 
     pub fn add_expression(&self, expression: Expression) -> Handle<Expression> {
         self.with_full_context(|ctx| {
-            let needs_no_emit = no_emit(&expression);
-            if needs_no_emit {
+            let skip_emit = no_emit(&expression);
+            if skip_emit {
                 ctx.emitter.pause(&ctx.function.expressions);
             }
             let handle = ctx.function.expressions.append(expression, SPAN);
-            if needs_no_emit {
+            if skip_emit {
                 ctx.emitter.start(&ctx.function.expressions);
             }
             handle
@@ -298,6 +298,12 @@ pub fn module() -> Module {
             Let!(x = workgroup_size);
             statement!(cx, identity(x));
             statement!(cx, identity(local_id));
+            statement!(
+                cx,
+                if (cx.const_(true)) {
+                } else {
+                }
+            )
         })
     });
 
