@@ -55,12 +55,10 @@ impl<'a> BlockContext<'a> {
         args: &A,
     ) -> <F::Return as FunctionReturn>::RetVal<'a> {
         let function = self.with_module_cx(|module| module.add_function(f));
-        self.emit();
         let return_val = <F::Return as FunctionReturn>::return_value(self, function);
         // The return expression, however, does not need to be emitted, as it is instead evaluated 'when' the call expression occurs
         // Note that if the expression is emitted, this appears to be *fine*, although it does create a 'phony' expression
         let return_expr = <F::Return as FunctionReturn>::return_expression(&return_val);
-        self.start();
         self.add_statement(Statement::Call {
             function,
             arguments: F::argument_expressions(args),
@@ -75,14 +73,12 @@ impl<'a> BlockContext<'a> {
         then: impl FnOnce(&mut BlockContext<'a>),
         else_: impl FnOnce(&mut BlockContext<'a>),
     ) {
-        self.emit();
         let mut then_block = BlockContext::new(self.function.clone());
         then(&mut then_block);
         then_block.emit();
         let mut else_block = BlockContext::new(self.function.clone());
         else_(&mut else_block);
         else_block.emit();
-        self.start();
         self.add_statement(Statement::If {
             condition: condition.expr(),
             accept: then_block.block,

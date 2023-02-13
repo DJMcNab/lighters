@@ -238,7 +238,7 @@ impl<'a> FnCx<'a> {
 
     pub fn add_expression(&self, expression: Expression) -> Handle<Expression> {
         self.with_full_context(|ctx| {
-            let needs_no_emit = expression.needs_pre_emit();
+            let needs_no_emit = no_emit(&expression);
             if needs_no_emit {
                 ctx.emitter.pause(&ctx.function.expressions);
             }
@@ -268,6 +268,23 @@ impl<'a> FnCx<'a> {
         let constant = self.add_constant(val);
 
         Value::new(Expression::Constant(constant), self)
+    }
+}
+
+/// Expressions which do not need a [`naga::Statement::Emit`]
+fn no_emit(expression: &Expression) -> bool {
+    match expression {
+        Expression::Constant(_)
+        | Expression::FunctionArgument(_)
+        | Expression::LocalVariable(_)
+        | Expression::GlobalVariable(_)
+        | Expression::CallResult(_)
+        | Expression::AtomicResult { .. } => true,
+
+        _ => {
+            debug_assert!(!expression.needs_pre_emit());
+            false
+        }
     }
 }
 
