@@ -74,32 +74,53 @@ impl<'a> EntryPointContext<'a> {
     }
 
     pub fn global_invocation_id(&mut self) -> Value<'a, entry_point::GlobalInvocationId> {
-        self.binding_argument(naga::Binding::BuiltIn(naga::BuiltIn::GlobalInvocationId))
+        self.binding_argument(
+            naga::Binding::BuiltIn(naga::BuiltIn::GlobalInvocationId),
+            "global_invocation_id",
+        )
     }
     pub fn local_invocation_id(&mut self) -> Value<'a, entry_point::LocalInvocationId> {
-        self.binding_argument(naga::Binding::BuiltIn(naga::BuiltIn::LocalInvocationId))
+        self.binding_argument(
+            naga::Binding::BuiltIn(naga::BuiltIn::LocalInvocationId),
+            "local_invocation_id",
+        )
     }
     pub fn local_invocation_index(&mut self) -> Value<'a, entry_point::LocalInvocationIndex> {
-        self.binding_argument(naga::Binding::BuiltIn(naga::BuiltIn::LocalInvocationIndex))
+        self.binding_argument(
+            naga::Binding::BuiltIn(naga::BuiltIn::LocalInvocationIndex),
+            "local_invocation_index",
+        )
     }
     pub fn work_group_id(&mut self) -> Value<'a, entry_point::WorkGroupId> {
-        self.binding_argument(naga::Binding::BuiltIn(naga::BuiltIn::WorkGroupId))
+        self.binding_argument(
+            naga::Binding::BuiltIn(naga::BuiltIn::WorkGroupId),
+            "work_group_id",
+        )
     }
     pub fn num_work_groups(&mut self) -> Value<'a, entry_point::NumWorkGroups> {
-        self.binding_argument(naga::Binding::BuiltIn(naga::BuiltIn::NumWorkGroups))
+        self.binding_argument(
+            naga::Binding::BuiltIn(naga::BuiltIn::NumWorkGroups),
+            "num_work_groups",
+        )
     }
 
     pub fn workgroup_size(&mut self) -> Value<'a, entry_point::WorkgroupSize> {
         if let Some(size) = &self.workgroup_size_expr {
             return size.clone();
         }
-        let size_constant = self.cx.add_constant(glam::UVec3::from(self.workgroup_size));
+        let size_constant = self
+            .cx
+            .add_named_constant(glam::UVec3::from(self.workgroup_size), "WORKGROUP_SIZE");
         let value = Value::from_const_handle(size_constant, &self.cx);
         self.workgroup_size_expr = Some(value.clone());
         value
     }
 
-    fn binding_argument<T: ToType>(&mut self, binding: naga::Binding) -> Value<'a, T> {
+    fn binding_argument<T: ToType>(
+        &mut self,
+        binding: naga::Binding,
+        param_name: &'static str,
+    ) -> Value<'a, T> {
         let ty = self.cx.with_module_cx(|module| {
             let mut registry = module.registry();
             registry.register_type::<T>()
@@ -108,7 +129,7 @@ impl<'a> EntryPointContext<'a> {
             let index = f.arguments.len();
             f.arguments.push(FunctionArgument {
                 ty,
-                name: None,
+                name: Some(param_name.to_string()),
                 binding: Some(binding),
             });
             index as u32
