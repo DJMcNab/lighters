@@ -49,10 +49,10 @@ impl<'a> BlockContext<'a> {
         self.block.push(stmt, SPAN);
     }
 
-    pub fn call_function<F: ShaderFunction<'a, M, A> + 'static, M, A>(
+    pub fn call_function<F: ShaderFunction<'a, M, Args> + 'static, M, Args>(
         &mut self,
         f: F,
-        args: &A,
+        args: &Args,
     ) -> <F::Return as FunctionReturn>::RetVal<'a> {
         let function = self.with_module_cx(|module| module.add_function(f));
         let return_val = <F::Return as FunctionReturn>::return_value(self, function);
