@@ -14,6 +14,8 @@ use functions::{FunctionMap, FunctionReturn, Returned, ShaderFunction};
 use naga::{Constant, FunctionArgument, FunctionResult, Handle};
 use naga::{EntryPoint, Expression, Function, Module, Span};
 
+pub use naga;
+
 /// We unfortunately need to use a null span for all operations, because naga only understands single-file
 /// sources. In theory, we could use `Span` as a `u64` identifier, although since wgpu would panic if the error was printed
 /// (e.g. with a naïve `unwrap`), that's not ideal
