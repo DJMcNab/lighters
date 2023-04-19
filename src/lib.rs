@@ -6,11 +6,13 @@ pub mod value;
 
 use std::any::TypeId;
 use std::cell::RefCell;
+use std::ops::Add;
 use std::rc::Rc;
 
 pub use block::BlockContext;
 use emitter::Emitter;
 use functions::{FunctionMap, FunctionReturn, Returned, ShaderFunction};
+use glam::{Vec2, Vec3, Vec4};
 use naga::{Constant, FunctionArgument, FunctionResult, Handle};
 use naga::{EntryPoint, Expression, Function, Module, Span};
 
@@ -298,6 +300,8 @@ pub fn module() -> Module {
         let local_id = ep.local_invocation_id();
         ep.body(|cx| {
             Let!(x = workgroup_size);
+            let vec = cx.const_(Vec4::new(20., 30., 14., 54.));
+            cx.call_function(reduce_vecn::<_, Sum>, &(vec,));
             statement!(cx, identity(x));
             statement!(cx, identity(local_id));
             statement!(
@@ -312,6 +316,69 @@ pub fn module() -> Module {
     module_cx.module
 }
 
-fn identity<'a, T: ToType>(_cx: &mut BlockContext<'a>, val: Value<'a, T>) -> Returned<T> {
+fn identity<T: ToType>(_cx: &mut BlockContext, val: Value<T>) -> Returned<T> {
     val.as_return()
+}
+
+fn reduce_vecn<V: Vector, Op: ReduceOp<V::Inner>>(
+    _: &mut BlockContext,
+    v: Value<V>,
+) -> Returned<V::Inner> {
+    // result stores the current running total; this variable stores $Value$s
+    let mut result = V::get_component(&v, 0);
+    // Iterate through the remaining indices of the vector
+    for i in 1..V::len() {
+        result = Op::run(&result, &V::get_component(&v, i));
+    }
+    result.as_return()
+}
+
+trait Vector: ToType {
+    type Inner: ToType;
+    fn len() -> u32;
+    fn get_component<'a>(value: &Value<'a, Self>, index: u32) -> Value<'a, Self::Inner> {
+        value.with_expression(Expression::AccessIndex {
+            base: value.expr(),
+            index,
+        })
+    }
+}
+
+impl Vector for Vec2 {
+    type Inner = f32;
+
+    fn len() -> u32 {
+        2
+    }
+}
+
+impl Vector for Vec3 {
+    type Inner = f32;
+
+    fn len() -> u32 {
+        3
+    }
+}
+
+impl Vector for Vec4 {
+    type Inner = f32;
+
+    fn len() -> u32 {
+        4
+    }
+}
+
+trait ReduceOp<T: ToType> {
+    fn run<'a>(lhs: &Value<'a, T>, rhs: &Value<'a, T>) -> Value<'a, T>;
+}
+
+struct Sum;
+
+impl<T: ToType> ReduceOp<T> for Sum
+where
+    for<'a, 'l, 'r> &'l Value<'a, T>: Add<&'l Value<'a, T>, Output = Value<'a, T>>,
+{
+    fn run<'a, 'b>(lhs: &Value<'a, T>, rhs: &Value<'a, T>) -> Value<'a, T> {
+        lhs + rhs
+    }
 }

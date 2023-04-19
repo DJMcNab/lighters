@@ -47,7 +47,8 @@ macro_rules! vector {
     };
     ($kind: ty: $component: ty ) => {
         // TODO: These are not true, because of naga's rules.
-        // Should we allow these?
+        // We should probably just make these methods.
+        // `glam` does support these operations in the "splatting" form
         // impl ValueMathOp<$component> for $kind {}
         // impl ValueMathOp<$kind> for $component {}
         impl ValueMathOp<$kind> for $kind {
