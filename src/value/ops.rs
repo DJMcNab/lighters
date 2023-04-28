@@ -1,7 +1,7 @@
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
-use naga::Expression;
+use naga::{BinaryOperator, Expression};
 
 use crate::{types::ToConstant, ToType, Value};
 
@@ -39,6 +39,57 @@ impl ValueMathOp for f32 {
 
 impl ValueNegate for i32 {}
 impl ValueNegate for f32 {}
+
+pub trait Comparable: ToType {}
+
+impl Comparable for i32 {}
+impl Comparable for u32 {}
+impl Comparable for f32 {}
+
+impl<'a, T: Comparable> Value<'a, T> {
+    pub fn le(&self, other: Value<'_, T>) -> Value<'a, bool> {
+        self.with_expression(Expression::Binary {
+            op: BinaryOperator::LessEqual,
+            left: self.expr(),
+            right: other.expr(),
+        })
+    }
+    pub fn lt(&self, other: Value<'_, T>) -> Value<'a, bool> {
+        self.with_expression(Expression::Binary {
+            op: BinaryOperator::Less,
+            left: self.expr(),
+            right: other.expr(),
+        })
+    }
+    pub fn eq(&self, other: Value<'_, T>) -> Value<'a, bool> {
+        self.with_expression(Expression::Binary {
+            op: BinaryOperator::Equal,
+            left: self.expr(),
+            right: other.expr(),
+        })
+    }
+    pub fn neq(&self, other: Value<'_, T>) -> Value<'a, bool> {
+        self.with_expression(Expression::Binary {
+            op: BinaryOperator::NotEqual,
+            left: self.expr(),
+            right: other.expr(),
+        })
+    }
+    pub fn gt(&self, other: Value<'_, T>) -> Value<'a, bool> {
+        self.with_expression(Expression::Binary {
+            op: BinaryOperator::Greater,
+            left: self.expr(),
+            right: other.expr(),
+        })
+    }
+    pub fn ge(&self, other: Value<'_, T>) -> Value<'a, bool> {
+        self.with_expression(Expression::Binary {
+            op: BinaryOperator::GreaterEqual,
+            left: self.expr(),
+            right: other.expr(),
+        })
+    }
+}
 
 macro_rules! vector {
     ($kind: ty: $component: ty, negates ) => {

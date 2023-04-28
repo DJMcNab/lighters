@@ -11,11 +11,12 @@ use std::rc::Rc;
 
 pub use block::BlockContext;
 use emitter::Emitter;
-use functions::{FunctionMap, FunctionReturn, Returned, ShaderFunction};
-use glam::{Vec2, Vec3, Vec4};
+use functions::{FunctionMap, FunctionReturn, ShaderFunction};
+use glam::Vec4;
 use naga::{Constant, FunctionArgument, FunctionResult, Handle};
 use naga::{EntryPoint, Expression, Function, Module, Span};
 
+pub use functions::Returned;
 pub use naga;
 
 /// We unfortunately need to use a null span for all operations, because naga only understands single-file
@@ -28,8 +29,8 @@ pub use naga;
 /// It seems surprising that the spir-v or glsl backends don't run into this, although I haven't looked into it
 const SPAN: Span = Span::UNDEFINED;
 
-use types::ToConstant;
 use types::TypeMap;
+use types::{ToConstant, Vector};
 
 pub use types::{ToType, TypeRegistry};
 pub use value::{entry_point, Value};
@@ -50,6 +51,10 @@ pub struct ModuleContext {
 impl ModuleContext {
     fn registry(&mut self) -> TypeRegistry {
         TypeRegistry::new(&mut self.module, &mut self.type_map)
+    }
+
+    pub fn module(self) -> Module {
+        self.module
     }
 }
 
@@ -325,47 +330,12 @@ fn reduce_vecn<V: Vector, Op: ReduceOp<V::Inner>>(
     v: Value<V>,
 ) -> Returned<V::Inner> {
     // result stores the current running total; this variable stores $Value$s
-    let mut result = V::get_component(&v, 0);
+    let mut result = v.get_component(0);
     // Iterate through the remaining indices of the vector
     for i in 1..V::len() {
-        result = Op::run(&result, &V::get_component(&v, i));
+        result = Op::run(&result, &v.get_component(i));
     }
     result.as_return()
-}
-
-trait Vector: ToType {
-    type Inner: ToType;
-    fn len() -> u32;
-    fn get_component<'a>(value: &Value<'a, Self>, index: u32) -> Value<'a, Self::Inner> {
-        value.with_expression(Expression::AccessIndex {
-            base: value.expr(),
-            index,
-        })
-    }
-}
-
-impl Vector for Vec2 {
-    type Inner = f32;
-
-    fn len() -> u32 {
-        2
-    }
-}
-
-impl Vector for Vec3 {
-    type Inner = f32;
-
-    fn len() -> u32 {
-        3
-    }
-}
-
-impl Vector for Vec4 {
-    type Inner = f32;
-
-    fn len() -> u32 {
-        4
-    }
 }
 
 trait ReduceOp<T: ToType> {

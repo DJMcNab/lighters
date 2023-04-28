@@ -2,9 +2,10 @@ use std::ops::Deref;
 
 use crate::{
     functions::{FunctionReturn, Returned, ShaderFunction},
+    types::{LocalVariable, PointerType, ToConstant},
     FnCx, ToType, Value, SPAN,
 };
-use naga::{Block, Statement};
+use naga::{Block, Expression, Statement};
 
 pub struct BlockContext<'a> {
     function: FnCx<'a>,
@@ -89,6 +90,23 @@ impl<'a> BlockContext<'a> {
         });
     }
 
+    pub fn loop_(&mut self, body: impl FnOnce(&mut BlockContext<'a>)) {
+        self.emit();
+        let mut block = BlockContext::new(self.function.clone());
+        body(&mut block);
+        block.emit();
+        self.start();
+        self.add_statement(Statement::Loop {
+            body: block.block,
+            continuing: Block::new(),
+            break_if: None,
+        });
+    }
+
+    pub fn break_(&mut self) {
+        self.add_statement(Statement::Break);
+    }
+
     pub fn return_<T: ToType>(&mut self, val: &Value<'a, T>) -> Returned<T> {
         if self.has_returned {
             return val.as_return();
@@ -98,6 +116,55 @@ impl<'a> BlockContext<'a> {
             value: Some(val.expr()),
         });
         val.as_return()
+    }
+
+    pub fn store<P: PointerType>(&mut self, to_: &Value<'_, P>, val: &Value<'_, P::Pointee>) {
+        self.add_statement(Statement::Store {
+            pointer: to_.expr(),
+            value: val.expr(),
+        });
+    }
+
+    pub fn local_variable<T: ToType + ToConstant>(
+        &mut self,
+        name: &str,
+    ) -> Value<'a, LocalVariable<T>> {
+        self.local_variable_inner(name, None)
+    }
+
+    pub fn local_variable_init<T: ToType + ToConstant>(
+        &mut self,
+        name: &str,
+        initial: T,
+    ) -> Value<'a, LocalVariable<T>> {
+        self.local_variable_inner(name, Some(initial))
+    }
+
+    fn local_variable_inner<T: ToType + ToConstant>(
+        &mut self,
+        name: &str,
+        initial: Option<T>,
+    ) -> Value<'a, LocalVariable<T>> {
+        let (ty, const_) = self.function.with_module_cx(|module| {
+            let mut registry = module.registry();
+            let ty = registry.register_type::<T>();
+            let const_ = initial.map(|v| registry.register_constant(v));
+            (ty, const_)
+        });
+        let var = self.function.with_function(|f| {
+            f.local_variables.append(
+                naga::LocalVariable {
+                    name: Some(name.to_string()),
+                    ty,
+                    init: const_,
+                },
+                SPAN,
+            )
+        });
+        Value::from_expr_handle(
+            self.function.add_expression(Expression::LocalVariable(var)),
+            &self.function,
+        )
     }
 }
 

@@ -90,18 +90,8 @@ impl<'a, T: ToType> Value<'a, T> {
     }
 }
 
-pub trait WrappingValue: 'static + Sized {
+pub trait WrappingValue: 'static + Sized + ToType {
     type Inner: ToType;
-}
-
-impl<T: WrappingValue> ToType for T {
-    fn naga_ty_inner(_: &mut crate::TypeRegistry) -> naga::TypeInner {
-        unimplemented!();
-    }
-
-    fn type_handle(registry: &mut crate::TypeRegistry) -> naga::Handle<naga::Type> {
-        registry.register_type::<<Self as WrappingValue>::Inner>()
-    }
 }
 
 impl<'a, T: WrappingValue> Value<'a, T> {
@@ -117,6 +107,17 @@ macro_rules! wrapper {
         pub struct $type;
         impl $crate::value::WrappingValue for $type {
             type Inner = $inner;
+        }
+
+
+        impl $crate::ToType for $type {
+            fn naga_ty_inner(_: &mut $crate::TypeRegistry) -> $crate::naga::TypeInner {
+                unimplemented!();
+            }
+
+            fn type_handle(registry: &mut crate::TypeRegistry) -> $crate::naga::Handle<naga::Type> {
+                registry.register_type::<<Self as $crate::value::WrappingValue>::Inner>()
+            }
         }
     };
 }

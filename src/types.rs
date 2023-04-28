@@ -1,13 +1,15 @@
 use naga::{
-    Constant, ConstantInner, Handle, Module, ScalarKind, ScalarValue, StructMember, Type, TypeInner,
+    AddressSpace, Constant, ConstantInner, Expression, Handle, Module, ScalarKind, ScalarValue,
+    Type, TypeInner,
 };
 use std::{
     any::TypeId,
     collections::HashMap,
+    marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 
-use crate::SPAN;
+use crate::{Value, SPAN};
 
 pub trait ToType: 'static + Sized {
     fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner;
@@ -27,15 +29,40 @@ pub trait ToType: 'static + Sized {
         registry.module.types.insert(ty_val, SPAN)
     }
 }
-
-fn type_name_simple_of<T: 'static>() -> String {
-    let name = std::any::type_name::<T>();
-    let name_final = name.rsplit_terminator("::").next().unwrap();
-    name_final.replace(['<', '>'], "_")
-}
-
 pub trait ToConstant: ToType {
     fn naga_constant(&self, registry: &mut TypeRegistry) -> ConstantInner;
+}
+
+pub trait Vector: ToType {
+    type Inner: ToType;
+    fn len() -> u32;
+}
+
+pub struct LocalVariable<T: ToType>(PhantomData<T>);
+
+pub trait PointerType: 'static + ToType {
+    type Pointee: ToType;
+}
+
+impl<T: ToType> PointerType for LocalVariable<T> {
+    type Pointee = T;
+}
+
+impl<T: ToType> ToType for LocalVariable<T> {
+    fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner {
+        TypeInner::Pointer {
+            base: registry.register_type::<T>(),
+            space: AddressSpace::Function,
+        }
+    }
+}
+
+impl<'a, P: PointerType> Value<'a, P> {
+    pub fn load(&self) -> Value<'a, P::Pointee> {
+        self.with_expression(Expression::Load {
+            pointer: self.expr(),
+        })
+    }
 }
 
 macro_rules! scalar {
@@ -65,7 +92,7 @@ scalar!(f32, Float, 4);
 scalar!(bool, Bool, naga::BOOL_WIDTH);
 
 macro_rules! vector {
-    ($type: ty: $size: ident, $kind: ident, $width: expr, ($($components: ident),+)) => {
+    ($type: ty: $len: literal, $inner_ty: ty, $size: ident, $kind: ident, $width: expr, ($($components: ident),+)) => {
         impl ToType for $type {
             fn naga_ty_inner(_: &mut TypeRegistry) -> TypeInner {
                 TypeInner::Vector {
@@ -86,57 +113,44 @@ macro_rules! vector {
                 }
             }
         }
+        impl Vector for $type {
+            type Inner = $inner_ty;
+            fn len()->u32{
+                $len
+            }
+        }
     };
 }
 
-vector!(glam::u32::UVec2: Bi, Uint, 4, (x, y));
-vector!(glam::u32::UVec3: Tri, Uint, 4, (x, y, z));
-vector!(glam::u32::UVec4: Quad, Uint, 4, (x, y, z, w));
+impl<'a, V: Vector> Value<'a, V> {
+    pub fn get_component(&self, index: u32) -> Value<'a, V::Inner> {
+        self.with_expression(Expression::AccessIndex {
+            base: self.expr(),
+            index,
+        })
+    }
+}
 
-vector!(glam::i32::IVec2: Bi, Sint, 4, (x, y));
-vector!(glam::i32::IVec3: Tri, Sint, 4, (x, y, z));
-vector!(glam::i32::IVec4: Quad, Sint, 4, (x, y, z, w));
+vector!(glam::u32::UVec2: 2, u32, Bi, Uint, 4, (x, y));
+vector!(glam::u32::UVec3: 3, u32, Tri, Uint, 4, (x, y, z));
+vector!(glam::u32::UVec4: 4, u32, Quad, Uint, 4, (x, y, z, w));
 
-vector!(glam::f32::Vec2: Bi, Float, 4, (x, y));
-vector!(glam::f32::Vec3: Tri, Float, 4, (x, y, z));
-vector!(glam::f32::Vec4: Quad, Float, 4, (x, y, z, w));
+vector!(glam::i32::IVec2: 2, i32, Bi, Sint, 4, (x, y));
+vector!(glam::i32::IVec3: 3, i32, Tri, Sint, 4, (x, y, z));
+vector!(glam::i32::IVec4: 4, i32, Quad, Sint, 4, (x, y, z, w));
 
-vector!(glam::bool::BVec2: Bi, Bool, naga::BOOL_WIDTH, (x, y));
-vector!(glam::bool::BVec3: Tri, Bool, naga::BOOL_WIDTH, (x, y, z));
+vector!(glam::f32::Vec2:2, f32,  Bi, Float, 4, (x, y));
+vector!(glam::f32::Vec3:3, f32,  Tri, Float, 4, (x, y, z));
+vector!(glam::f32::Vec4:4, f32,  Quad, Float, 4, (x, y, z, w));
+
+vector!(glam::bool::BVec2: 2, bool, Bi, Bool, naga::BOOL_WIDTH, (x, y));
+vector!(glam::bool::BVec3: 3, bool, Tri, Bool, naga::BOOL_WIDTH, (x, y, z));
 vector!(
-    glam::bool::BVec4: Quad,
+    glam::bool::BVec4: 4, bool, Quad,
     Bool,
     naga::BOOL_WIDTH,
     (x, y, z, w)
 );
-
-pub struct MyStruct {
-    pub a: u32,
-    pub b: f32,
-}
-
-impl ToType for MyStruct {
-    fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner {
-        let members = vec![
-            StructMember {
-                name: Some("a".to_string()),
-                ty: registry.register_type::<u32>(),
-                binding: None,
-                offset: 0,
-            },
-            StructMember {
-                name: Some("b".to_string()),
-                ty: registry.register_type::<f32>(),
-                binding: None,
-                offset: 4,
-            },
-        ];
-        TypeInner::Struct {
-            members,
-            span: std::mem::size_of::<Self>().try_into().unwrap(),
-        }
-    }
-}
 
 #[derive(Default)]
 pub(crate) struct TypeMap {
@@ -197,4 +211,10 @@ impl<'a> TypeRegistry<'a> {
         };
         self.module.constants.append(constant, SPAN)
     }
+}
+
+fn type_name_simple_of<T: 'static>() -> String {
+    let name = std::any::type_name::<T>();
+    let name_final = name.rsplit_terminator("::").next().unwrap();
+    name_final.replace(['<', '>'], "_")
 }

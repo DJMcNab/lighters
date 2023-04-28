@@ -1,3 +1,7 @@
+[workspace]
+members = ["examples/*"]
+resolver = "2"
+
 [package]
 name = "lighters"
 version = "0.1.0"
@@ -6,11 +10,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-glam = "0.22.0"
+glam = "0.24.0"
 # We include wgsl-in *only* for rust-analyzer browsing
-naga = { version = "0.11.0", features = [
-    "span",
+naga = { workspace = true, features = [
+    # "span",
     "wgsl-out",
-    "wgsl-in",
-    "validate",
+    # "wgsl-in",
+    # "validate",
 ] }
+
+[workspace.dependencies]
+naga = "0.12.0"
+wgpu = { version = "0.16", default_features = false }
+runtime = { path = "examples/runtime" }
+lighters = { path = "." }
