@@ -16,8 +16,8 @@ var<workgroup> scratch: array<u32, 256>;
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invocation_id) local_id: vec3<u32>, @builtin(workgroup_id) wg_id: vec3<u32>) {
     let ix = global_id.x;
     var agg = in_data[ix];
-    if local_id.x == 255u {
-        agg = agg + reduced[ix >> 8u];
+    if local_id.x == 255u && wg_id.x < 255u {
+        agg = agg + reduced[wg_id.x + 1u];
     }
     scratch[local_id.x] = agg;
     for (var i = 0u; i < 8u; i += 1u) {

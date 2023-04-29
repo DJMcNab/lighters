@@ -26,7 +26,9 @@ pub trait ToType: 'static {
             return *ty;
         }
         let ty_val = Self::naga_ty(registry);
-        registry.module.types.insert(ty_val, SPAN)
+        let handle = registry.module.types.insert(ty_val, SPAN);
+        registry.tys.insert(TypeId::of::<Self>(), handle);
+        handle
     }
 }
 pub trait ToConstant: ToType {

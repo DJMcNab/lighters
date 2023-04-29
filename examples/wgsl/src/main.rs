@@ -18,6 +18,8 @@ async fn run() {
             println!("{:?}", &result[..32]);
         }
         Some("prefix_sum") => {
+            let start = std::time::Instant::now();
+
             let reduce = setup
                 .device
                 .create_shader_module(wgpu::include_wgsl!("./sum_reduce.wgsl"));
@@ -27,6 +29,8 @@ async fn run() {
             let scan = setup
                 .device
                 .create_shader_module(wgpu::include_wgsl!("./sum_scan.wgsl"));
+            eprintln!("Shader setup took {:.3?}", start.elapsed());
+
             let result = setup.run_prefix_sum(&reduce, &reduce2, &scan).await;
             println!("{:?}", &result[..32]);
         }

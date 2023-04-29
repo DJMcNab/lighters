@@ -111,7 +111,8 @@ impl GpuResources {
         // Heavily adapted from https://github.com/gfx-rs/wgpu/blob/trunk/wgpu/examples/hello-compute/main.rs
         // Used under MIT license
         // see examples/wgsl/src/collatz.wgsl for license text
-        let input_data: Vec<u32> = (0..=256 * 256).collect(); // Maximum number of items which can be reduced in 3 modules
+        let input_data: Vec<u32> = (0..256 * 256).collect(); // Maximum number of items which can be reduced in 3 modules
+        eprintln!("Expected total {}", input_data.iter().sum::<u32>());
         let main_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("primary_buffer"),
             contents: cast_slice(&input_data),

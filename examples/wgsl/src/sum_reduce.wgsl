@@ -27,7 +27,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>, @builtin(local_invo
         scratch[local_id.x] = agg;
     }
     if local_id.x == 0u {
-        reduced[ix >> 8u] = agg;
+        reduced[wg_id.x] = agg;
     }
 }
 

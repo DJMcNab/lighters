@@ -29,8 +29,8 @@ pub use naga;
 /// It seems surprising that the spir-v or glsl backends don't run into this, although I haven't looked into it
 const SPAN: Span = Span::UNDEFINED;
 
-use types::ToConstant;
 use types::{StorageAccess, StoragePtr, TypeMap};
+use types::{ToConstant, WorkgroupPtr};
 
 pub use types::{ToType, TypeRegistry};
 pub use value::{entry_point, Value};
@@ -162,6 +162,23 @@ impl<'a> EntryPointContext<'a> {
                         access: A::access(),
                     },
                     binding: Some(binding),
+                    ty,
+                    init: None,
+                },
+                SPAN,
+            )
+        });
+        Value::new(Expression::GlobalVariable(handle), &self.cx)
+    }
+
+    pub fn workgroup_variable<T: ToType>(&mut self, name: &str) -> Value<'a, WorkgroupPtr<T>> {
+        let handle = self.cx.with_full_context(|cx| {
+            let ty = cx.module.registry().register_type::<T>();
+            cx.module.module.global_variables.append(
+                GlobalVariable {
+                    name: Some(name.to_string()),
+                    space: naga::AddressSpace::WorkGroup,
+                    binding: None,
                     ty,
                     init: None,
                 },
