@@ -5,7 +5,7 @@ use crate::{
     types::{LocalVariable, PointerType, ToConstant},
     FnCx, ToType, Value, SPAN,
 };
-use naga::{Block, Expression, Statement};
+use naga::{Barrier, Block, Expression, Statement};
 
 pub struct BlockContext<'a> {
     function: FnCx<'a>,
@@ -107,7 +107,7 @@ impl<'a> BlockContext<'a> {
         self.add_statement(Statement::Break);
     }
 
-    pub fn return_<T: ToType>(&mut self, val: &Value<'a, T>) -> Returned<T> {
+    pub fn return_<T: ToType>(&mut self, val: &Value<'_, T>) -> Returned<T> {
         if self.has_returned {
             return val.as_return();
         }
@@ -118,6 +118,9 @@ impl<'a> BlockContext<'a> {
         val.as_return()
     }
 
+    pub fn barrier(&mut self) {
+        self.add_statement(Statement::Barrier(Barrier::WORK_GROUP));
+    }
     pub fn store<P: PointerType>(&mut self, to_: &Value<'_, P>, val: &Value<'_, P::Pointee>) {
         self.add_statement(Statement::Store {
             pointer: to_.expr(),

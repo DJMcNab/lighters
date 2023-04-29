@@ -40,10 +40,12 @@ pub trait Vector: ToType {
 
 pub trait PointerType: 'static + ToType {
     type Pointee: ToType;
+    type This<U: ToType>: PointerType<Pointee = U>;
 }
 
 pub struct LocalVariable<T: ToType>(PhantomData<T>);
 pub struct StoragePtr<T: ToType, A: StorageAccess>(PhantomData<fn() -> (Box<T>, A)>);
+pub struct WorkgroupPtr<T: ToType>(PhantomData<T>);
 
 pub trait StorageAccess: 'static {
     fn access() -> naga::StorageAccess;
@@ -71,6 +73,7 @@ impl StorageAccess for ReadWrite {
 
 impl<T: ToType> PointerType for LocalVariable<T> {
     type Pointee = T;
+    type This<U: ToType> = LocalVariable<U>;
 }
 
 impl<T: ToType> ToType for LocalVariable<T> {
@@ -84,6 +87,7 @@ impl<T: ToType> ToType for LocalVariable<T> {
 
 impl<T: ToType, A: StorageAccess> PointerType for StoragePtr<T, A> {
     type Pointee = T;
+    type This<U: ToType> = StoragePtr<U, A>;
 }
 
 impl<T: ToType, A: StorageAccess> ToType for StoragePtr<T, A> {
@@ -102,6 +106,20 @@ impl<'a, P: PointerType> Value<'a, P> {
         self.with_expression(Expression::Load {
             pointer: self.expr(),
         })
+    }
+}
+
+impl<T: ToType> PointerType for WorkgroupPtr<T> {
+    type Pointee = T;
+    type This<U: ToType> = WorkgroupPtr<U>;
+}
+
+impl<T: ToType> ToType for WorkgroupPtr<T> {
+    fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner {
+        TypeInner::Pointer {
+            base: registry.register_type::<T>(),
+            space: AddressSpace::WorkGroup,
+        }
     }
 }
 
@@ -273,8 +291,9 @@ impl<T: ToType> ToType for Box<[T]> {
         }
     }
 }
-impl<'a, T: ToType, A: StorageAccess> Value<'a, StoragePtr<Box<[T]>, A>> {
-    pub fn index(&self, idx: Value<'_, u32>) -> Value<'a, StoragePtr<T, A>> {
+
+impl<'a, T: ToType, P: PointerType<Pointee = Box<[T]>>> Value<'a, P> {
+    pub fn index(&self, idx: Value<'_, u32>) -> Value<'a, P::This<T>> {
         self.with_expression(Expression::Access {
             base: self.expr(),
             index: idx.expr(),
@@ -282,8 +301,30 @@ impl<'a, T: ToType, A: StorageAccess> Value<'a, StoragePtr<Box<[T]>, A>> {
     }
 }
 
-impl<'a, T: ToType> Value<'a, Box<[T]>> {
-    pub fn index(&self, idx: Value<'_, u32>) -> Value<'a, T> {
+pub struct Array<T: ToType, const N: u32>(PhantomData<T>);
+
+impl<'a, T: ToType, const N: u32> ToType for Array<T, N> {
+    fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner {
+        let base = registry.register_type::<T>();
+        let el_size = registry
+            .module
+            .types
+            .get_handle(base)
+            .unwrap()
+            .inner
+            .size(&registry.module.constants);
+        TypeInner::Array {
+            base,
+            size: naga::ArraySize::Constant(registry.register_constant(N)),
+            // TODO: This is slightly wrong for different alignments
+            // Good enough for testing
+            stride: el_size,
+        }
+    }
+}
+
+impl<'a, T: ToType, const N: u32, P: PointerType<Pointee = Array<T, N>>> Value<'a, P> {
+    pub fn get_index(&self, idx: &Value<'_, u32>) -> Value<'a, P::This<T>> {
         self.with_expression(Expression::Access {
             base: self.expr(),
             index: idx.expr(),

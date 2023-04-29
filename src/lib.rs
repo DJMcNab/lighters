@@ -1,3 +1,4 @@
+pub mod algorithms;
 mod block;
 mod emitter;
 mod functions;
@@ -6,7 +7,6 @@ pub mod value;
 
 use std::any::TypeId;
 use std::cell::RefCell;
-use std::ops::Add;
 use std::rc::Rc;
 
 pub use block::BlockContext;
@@ -29,11 +29,13 @@ pub use naga;
 /// It seems surprising that the spir-v or glsl backends don't run into this, although I haven't looked into it
 const SPAN: Span = Span::UNDEFINED;
 
+use types::ToConstant;
 use types::{StorageAccess, StoragePtr, TypeMap};
-use types::{ToConstant, Vector};
 
 pub use types::{ToType, TypeRegistry};
 pub use value::{entry_point, Value};
+
+use crate::algorithms::{reduce_vecn, Sum};
 
 macro_rules! Let {
     ($name: ident = $val: expr) => {
@@ -346,32 +348,4 @@ pub fn module() -> Module {
 
 fn identity<T: ToType>(_cx: &mut BlockContext, val: Value<T>) -> Returned<T> {
     val.as_return()
-}
-
-fn reduce_vecn<V: Vector, Op: ReduceOp<V::Inner>>(
-    _: &mut BlockContext,
-    v: Value<V>,
-) -> Returned<V::Inner> {
-    // result stores the current running total; this variable stores $Value$s
-    let mut result = v.get_component(0);
-    // Iterate through the remaining indices of the vector
-    for i in 1..V::len() {
-        result = Op::run(&result, &v.get_component(i));
-    }
-    result.as_return()
-}
-
-trait ReduceOp<T: ToType> {
-    fn run<'a>(lhs: &Value<'a, T>, rhs: &Value<'a, T>) -> Value<'a, T>;
-}
-
-struct Sum;
-
-impl<T: ToType> ReduceOp<T> for Sum
-where
-    for<'a, 'l, 'r> &'l Value<'a, T>: Add<&'l Value<'a, T>, Output = Value<'a, T>>,
-{
-    fn run<'a, 'b>(lhs: &Value<'a, T>, rhs: &Value<'a, T>) -> Value<'a, T> {
-        lhs + rhs
-    }
 }

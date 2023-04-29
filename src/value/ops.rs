@@ -3,7 +3,10 @@ use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 use glam::{IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4};
 use naga::{BinaryOperator, Expression};
 
-use crate::{types::ToConstant, ToType, Value};
+use crate::{
+    types::{PointerType, ToConstant},
+    BlockContext, ToType, Value,
+};
 
 /// Can be added/minused/multiplied/divided
 pub trait ValueMathOp<Rhs = Self>: ToType {
@@ -47,42 +50,42 @@ impl Comparable for u32 {}
 impl Comparable for f32 {}
 
 impl<'a, T: Comparable> Value<'a, T> {
-    pub fn le(&self, other: Value<'_, T>) -> Value<'a, bool> {
+    pub fn le(&self, other: &Value<'_, T>) -> Value<'a, bool> {
         self.with_expression(Expression::Binary {
             op: BinaryOperator::LessEqual,
             left: self.expr(),
             right: other.expr(),
         })
     }
-    pub fn lt(&self, other: Value<'_, T>) -> Value<'a, bool> {
+    pub fn lt(&self, other: &Value<'_, T>) -> Value<'a, bool> {
         self.with_expression(Expression::Binary {
             op: BinaryOperator::Less,
             left: self.expr(),
             right: other.expr(),
         })
     }
-    pub fn eq(&self, other: Value<'_, T>) -> Value<'a, bool> {
+    pub fn eq(&self, other: &Value<'_, T>) -> Value<'a, bool> {
         self.with_expression(Expression::Binary {
             op: BinaryOperator::Equal,
             left: self.expr(),
             right: other.expr(),
         })
     }
-    pub fn neq(&self, other: Value<'_, T>) -> Value<'a, bool> {
+    pub fn neq(&self, other: &Value<'_, T>) -> Value<'a, bool> {
         self.with_expression(Expression::Binary {
             op: BinaryOperator::NotEqual,
             left: self.expr(),
             right: other.expr(),
         })
     }
-    pub fn gt(&self, other: Value<'_, T>) -> Value<'a, bool> {
+    pub fn gt(&self, other: &Value<'_, T>) -> Value<'a, bool> {
         self.with_expression(Expression::Binary {
             op: BinaryOperator::Greater,
             left: self.expr(),
             right: other.expr(),
         })
     }
-    pub fn ge(&self, other: Value<'_, T>) -> Value<'a, bool> {
+    pub fn ge(&self, other: &Value<'_, T>) -> Value<'a, bool> {
         self.with_expression(Expression::Binary {
             op: BinaryOperator::GreaterEqual,
             left: self.expr(),
@@ -199,5 +202,27 @@ impl<'a, R: ValueNegate + ToType> Neg for Value<'a, R> {
             op: naga::UnaryOperator::Negate,
             expr: self.expr(),
         })
+    }
+}
+
+impl<'a> Value<'a, u32> {
+    /// A minimal version of saturating mul
+    pub fn saturating_mul(
+        &self,
+        rhs: &Value<'a, u32>,
+        cx: &mut BlockContext,
+        result: &Value<'_, impl PointerType<Pointee = u32>>,
+        overflowed: Option<impl FnOnce(&mut BlockContext)>,
+    ) {
+        cx.if_(
+            &self.gt(&(cx.const_(u32::MAX) / rhs)),
+            |cx| {
+                cx.store(&result, &cx.const_(u32::MAX));
+                if let Some(overflowed) = overflowed {
+                    overflowed(cx);
+                }
+            },
+            |cx| cx.store(&result, &(self * rhs)),
+        );
     }
 }
