@@ -13,7 +13,7 @@ pub use block::BlockContext;
 use emitter::Emitter;
 use functions::{FunctionMap, FunctionReturn, ShaderFunction};
 use glam::Vec4;
-use naga::{Constant, FunctionArgument, FunctionResult, Handle};
+use naga::{Constant, FunctionArgument, FunctionResult, GlobalVariable, Handle, ResourceBinding};
 use naga::{EntryPoint, Expression, Function, Module, Span};
 
 pub use functions::Returned;
@@ -29,7 +29,7 @@ pub use naga;
 /// It seems surprising that the spir-v or glsl backends don't run into this, although I haven't looked into it
 const SPAN: Span = Span::UNDEFINED;
 
-use types::TypeMap;
+use types::{StorageAccess, StoragePtr, TypeMap};
 use types::{ToConstant, Vector};
 
 pub use types::{ToType, TypeRegistry};
@@ -144,6 +144,29 @@ impl<'a> EntryPointContext<'a> {
             index as u32
         });
         Value::new(Expression::FunctionArgument(index), &self.cx)
+    }
+
+    pub fn storage_variable<T: ToType, A: StorageAccess>(
+        &mut self,
+        name: &str,
+        binding: ResourceBinding,
+    ) -> Value<'a, StoragePtr<T, A>> {
+        let handle = self.cx.with_full_context(|cx| {
+            let ty = cx.module.registry().register_type::<T>();
+            cx.module.module.global_variables.append(
+                GlobalVariable {
+                    name: Some(name.to_string()),
+                    space: naga::AddressSpace::Storage {
+                        access: A::access(),
+                    },
+                    binding: Some(binding),
+                    ty,
+                    init: None,
+                },
+                SPAN,
+            )
+        });
+        Value::new(Expression::GlobalVariable(handle), &self.cx)
     }
 }
 

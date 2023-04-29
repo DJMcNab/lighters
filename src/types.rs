@@ -11,7 +11,7 @@ use std::{
 
 use crate::{Value, SPAN};
 
-pub trait ToType: 'static + Sized {
+pub trait ToType: 'static {
     fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner;
 
     fn naga_ty(registry: &mut TypeRegistry) -> Type {
@@ -38,10 +38,35 @@ pub trait Vector: ToType {
     fn len() -> u32;
 }
 
-pub struct LocalVariable<T: ToType>(PhantomData<T>);
-
 pub trait PointerType: 'static + ToType {
     type Pointee: ToType;
+}
+
+pub struct LocalVariable<T: ToType>(PhantomData<T>);
+pub struct StoragePtr<T: ToType, A: StorageAccess>(PhantomData<fn() -> (Box<T>, A)>);
+
+pub trait StorageAccess: 'static {
+    fn access() -> naga::StorageAccess;
+}
+
+pub struct ReadOnly;
+pub struct WriteOnly;
+pub struct ReadWrite;
+
+impl StorageAccess for ReadOnly {
+    fn access() -> naga::StorageAccess {
+        naga::StorageAccess::LOAD
+    }
+}
+impl StorageAccess for WriteOnly {
+    fn access() -> naga::StorageAccess {
+        naga::StorageAccess::STORE
+    }
+}
+impl StorageAccess for ReadWrite {
+    fn access() -> naga::StorageAccess {
+        naga::StorageAccess::all()
+    }
 }
 
 impl<T: ToType> PointerType for LocalVariable<T> {
@@ -53,6 +78,21 @@ impl<T: ToType> ToType for LocalVariable<T> {
         TypeInner::Pointer {
             base: registry.register_type::<T>(),
             space: AddressSpace::Function,
+        }
+    }
+}
+
+impl<T: ToType, A: StorageAccess> PointerType for StoragePtr<T, A> {
+    type Pointee = T;
+}
+
+impl<T: ToType, A: StorageAccess> ToType for StoragePtr<T, A> {
+    fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner {
+        TypeInner::Pointer {
+            base: registry.register_type::<T>(),
+            space: AddressSpace::Storage {
+                access: A::access(),
+            },
         }
     }
 }
@@ -213,7 +253,45 @@ impl<'a> TypeRegistry<'a> {
     }
 }
 
-fn type_name_simple_of<T: 'static>() -> String {
+// Box is ued here to allow Sized
+impl<T: ToType> ToType for Box<[T]> {
+    fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner {
+        let base = registry.register_type::<T>();
+        let el_size = registry
+            .module
+            .types
+            .get_handle(base)
+            .unwrap()
+            .inner
+            .size(&registry.module.constants);
+        TypeInner::Array {
+            base,
+            size: naga::ArraySize::Dynamic,
+            // TODO: This is slightly wrong for different alignments
+            // Good enough for testing
+            stride: el_size,
+        }
+    }
+}
+impl<'a, T: ToType, A: StorageAccess> Value<'a, StoragePtr<Box<[T]>, A>> {
+    pub fn index(&self, idx: Value<'_, u32>) -> Value<'a, StoragePtr<T, A>> {
+        self.with_expression(Expression::Access {
+            base: self.expr(),
+            index: idx.expr(),
+        })
+    }
+}
+
+impl<'a, T: ToType> Value<'a, Box<[T]>> {
+    pub fn index(&self, idx: Value<'_, u32>) -> Value<'a, T> {
+        self.with_expression(Expression::Access {
+            base: self.expr(),
+            index: idx.expr(),
+        })
+    }
+}
+
+fn type_name_simple_of<T: 'static + ?Sized>() -> String {
     let name = std::any::type_name::<T>();
     let name_final = name.rsplit_terminator("::").next().unwrap();
     name_final.replace(['<', '>'], "_")
