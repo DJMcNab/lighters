@@ -1091,6 +1091,7 @@ name = "with_lighters"
 version = "0.1.0"
 dependencies = [
  "lighters",
+ "naga",
  "pollster",
  "runtime",
  "wgpu",

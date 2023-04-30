@@ -11,5 +11,6 @@ wgpu = { workspace = true, features = ["naga"] }
 
 lighters = { workspace = true }
 runtime = { workspace = true }
+naga = { workspace = true, features = ["wgsl-out"] }
 
 pollster = "0.3.0"

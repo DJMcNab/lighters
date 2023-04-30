@@ -14,7 +14,7 @@ glam = "0.24.0"
 # We include wgsl-in *only* for rust-analyzer browsing
 naga = { workspace = true, features = [
     # "span",
-    "wgsl-out",
+    # "wgsl-out",
     # "wgsl-in",
     # "validate",
 ] }

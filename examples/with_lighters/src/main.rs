@@ -18,9 +18,9 @@ fn write_module(module: &Module) {
         // Taken from naga CLI for wgsl input
         Capabilities::all() & !(Capabilities::CLIP_DISTANCE | Capabilities::CULL_DISTANCE);
     let mut validator = Validator::new(validation_flags, capabilities);
-    let module_info = validator.validate(&module).unwrap();
+    let module_info = validator.validate(module).unwrap();
     let result =
-        lighters::naga::back::wgsl::write_string(&module, &module_info, writer_flags).unwrap();
+        lighters::naga::back::wgsl::write_string(module, &module_info, writer_flags).unwrap();
     std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/output.wgsl"), result).unwrap();
 }
 

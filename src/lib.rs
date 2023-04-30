@@ -12,7 +12,6 @@ use std::rc::Rc;
 pub use block::BlockContext;
 use emitter::Emitter;
 use functions::{FunctionMap, FunctionReturn, ShaderFunction};
-use glam::Vec4;
 use naga::{Constant, FunctionArgument, FunctionResult, GlobalVariable, Handle, ResourceBinding};
 use naga::{EntryPoint, Expression, Function, Module, Span};
 
@@ -35,8 +34,7 @@ use types::{ToConstant, WorkgroupPtr};
 pub use types::{ToType, TypeRegistry};
 pub use value::{entry_point, Value};
 
-use crate::algorithms::{reduce_vecn, Sum};
-
+#[macro_export]
 macro_rules! Let {
     ($name: ident = $val: expr) => {
         statement!(_fake, let $name = $val);
@@ -337,32 +335,4 @@ fn no_emit(expression: &Expression) -> bool {
             false
         }
     }
-}
-
-pub fn module() -> Module {
-    let mut module_cx = ModuleContext::default();
-
-    module_cx.entry_point("main", [256, 1, 1], |ep| {
-        let workgroup_size = ep.workgroup_size();
-        let local_id = ep.local_invocation_id();
-        ep.body(|cx| {
-            Let!(x = workgroup_size);
-            let vec = cx.const_(Vec4::new(20., 30., 14., 54.));
-            cx.call_function(reduce_vecn::<_, Sum>, &(vec,));
-            statement!(cx, identity(x));
-            statement!(cx, identity(local_id));
-            statement!(
-                cx,
-                if (cx.const_(true)) {
-                } else {
-                }
-            )
-        })
-    });
-
-    module_cx.module
-}
-
-fn identity<T: ToType>(_cx: &mut BlockContext, val: Value<T>) -> Returned<T> {
-    val.as_return()
 }
