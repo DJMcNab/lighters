@@ -4,4 +4,4 @@ An experiment into code generation of shaders for Rust programs (as a stable alt
 
 ## License
 
-There is currently no license available for lighters, as there are potential IP concerns related to its planned use for a university project.
+There is currently no license available for lighters.

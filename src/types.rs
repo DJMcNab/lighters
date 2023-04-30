@@ -269,6 +269,7 @@ impl<'a> TypeRegistry<'a> {
             specialization: None,
             inner,
         };
+        // TODO: Is self.module.constants.fetch_or_append(constant, SPAN) more appropriate?
         self.module.constants.append(constant, SPAN)
     }
 }
