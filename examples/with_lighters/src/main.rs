@@ -2,11 +2,7 @@ use std::borrow::Cow;
 
 use lighters::{
     algorithms::Sum,
-    naga::{
-        back::wgsl::{self, WriterFlags},
-        valid::{Capabilities, ValidationFlags, Validator},
-        Module,
-    },
+    naga::Module,
     types::{ReadOnly, ReadWrite},
     BlockContext, ModuleContext, Returned, Value,
 };
@@ -14,17 +10,19 @@ use lighters::{
 /// Run the examples with WGSL shaders, to test compilation time and
 /// Binary size when using Naga's translation
 
-// fn write_module(module: &Module) {
-//     let writer_flags = WriterFlags::all();
-//     let validation_flags = ValidationFlags::empty();
-//     let capabilities =
-//         // Taken from naga CLI for wgsl input
-//         Capabilities::all() & !(Capabilities::CLIP_DISTANCE | Capabilities::CULL_DISTANCE);
-//     let mut validator = Validator::new(validation_flags, capabilities);
-//     let module_info = validator.validate(&module).unwrap();
-//     let result = wgsl::write_string(&module, &module_info, writer_flags).unwrap();
-//     std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/output.wgsl"), result).unwrap();
-// }
+fn write_module(module: &Module) {
+    use lighters::naga::valid::{Capabilities, ValidationFlags, Validator};
+    let writer_flags = lighters::naga::back::wgsl::WriterFlags::all();
+    let validation_flags = ValidationFlags::empty();
+    let capabilities =
+        // Taken from naga CLI for wgsl input
+        Capabilities::all() & !(Capabilities::CLIP_DISTANCE | Capabilities::CULL_DISTANCE);
+    let mut validator = Validator::new(validation_flags, capabilities);
+    let module_info = validator.validate(&module).unwrap();
+    let result =
+        lighters::naga::back::wgsl::write_string(&module, &module_info, writer_flags).unwrap();
+    std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/output.wgsl"), result).unwrap();
+}
 
 fn main() {
     pollster::block_on(run());
@@ -37,6 +35,7 @@ async fn run() {
     match &args.next().as_deref() {
         Some("collatz") => {
             let module = collatz_module();
+            write_module(&module);
             // write_module(&module);
             let module = setup
                 .device

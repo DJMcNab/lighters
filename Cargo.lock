@@ -909,15 +909,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wgsl"
-version = "0.1.0"
-dependencies = [
- "pollster",
- "runtime",
- "wgpu",
-]
-
-[[package]]
 name = "widestring"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1100,6 +1091,15 @@ name = "with_lighters"
 version = "0.1.0"
 dependencies = [
  "lighters",
+ "pollster",
+ "runtime",
+ "wgpu",
+]
+
+[[package]]
+name = "with_wgsl"
+version = "0.1.0"
+dependencies = [
  "pollster",
  "runtime",
  "wgpu",
