@@ -217,12 +217,12 @@ impl<'a> Value<'a, u32> {
         cx.if_(
             &self.gt(&(cx.const_(u32::MAX) / rhs)),
             |cx| {
-                cx.store(&result, &cx.const_(u32::MAX));
+                cx.store(result, &cx.const_(u32::MAX));
                 if let Some(overflowed) = overflowed {
                     overflowed(cx);
                 }
             },
-            |cx| cx.store(&result, &(self * rhs)),
+            |cx| cx.store(result, &(self * rhs)),
         );
     }
 }

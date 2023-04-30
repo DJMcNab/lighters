@@ -6,7 +6,7 @@ use crate::{
     BlockContext, Returned, ToType, Value,
 };
 
-pub fn scan<'a, T: ToType + ToConstant, Op: ScanOp<T>, const WORKGROUP_WIDTH: u32>(
+pub fn scan<T: ToType + ToConstant, Op: ScanOp<T>, const WORKGROUP_WIDTH: u32>(
     cx: &mut BlockContext,
     local_id: Value<LocalInvocationId>,
     // TODO: This should always be a constant?
@@ -39,13 +39,13 @@ pub fn scan<'a, T: ToType + ToConstant, Op: ScanOp<T>, const WORKGROUP_WIDTH: u3
 }
 
 pub trait ScanOp<T: ToType> {
-    fn run<'l, 'r>(lhs: &Value<'l, T>, rhs: &Value<'r, T>) -> Value<'l, T>;
+    fn run<'l>(lhs: &Value<'l, T>, rhs: &Value<'_, T>) -> Value<'l, T>;
 }
 impl<T: ToType> ScanOp<T> for Sum
 where
     for<'a, 'l, 'r> &'a Value<'l, T>: Add<&'a Value<'r, T>, Output = Value<'l, T>>,
 {
-    fn run<'l, 'r>(lhs: &Value<'l, T>, rhs: &Value<'r, T>) -> Value<'l, T> {
+    fn run<'l>(lhs: &Value<'l, T>, rhs: &Value<'_, T>) -> Value<'l, T> {
         lhs + rhs
     }
 }

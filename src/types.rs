@@ -46,7 +46,7 @@ pub trait PointerType: 'static + ToType {
 }
 
 pub struct LocalVariable<T: ToType>(PhantomData<T>);
-pub struct StoragePtr<T: ToType, A: StorageAccess>(PhantomData<fn() -> (Box<T>, A)>);
+pub struct StoragePtr<T: ToType, A: StorageAccess>(PhantomData<(Box<T>, A)>);
 pub struct WorkgroupPtr<T: ToType>(PhantomData<T>);
 
 pub trait StorageAccess: 'static {
@@ -306,7 +306,7 @@ impl<'a, T: ToType, P: PointerType<Pointee = Box<[T]>>> Value<'a, P> {
 
 pub struct Array<T: ToType, const N: u32>(PhantomData<T>);
 
-impl<'a, T: ToType, const N: u32> ToType for Array<T, N> {
+impl<T: ToType, const N: u32> ToType for Array<T, N> {
     fn naga_ty_inner(registry: &mut TypeRegistry) -> TypeInner {
         let base = registry.register_type::<T>();
         let el_size = registry

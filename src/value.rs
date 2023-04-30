@@ -115,7 +115,7 @@ macro_rules! wrapper {
                 unimplemented!();
             }
 
-            fn type_handle(registry: &mut crate::TypeRegistry) -> $crate::naga::Handle<naga::Type> {
+            fn type_handle(registry: &mut $crate::TypeRegistry) -> $crate::naga::Handle<naga::Type> {
                 registry.register_type::<<Self as $crate::value::WrappingValue>::Inner>()
             }
         }
