@@ -41,7 +41,7 @@ impl GpuResources {
     pub async fn run_collatz(&self, module: &ShaderModule) -> Vec<u32> {
         // Heavily adapted from https://github.com/gfx-rs/wgpu/blob/trunk/wgpu/examples/hello-compute/main.rs
         // Used under MIT license
-        // see examples/wgsl/src/collatz.wgsl for license text
+        // see examples/with_wgsl/src/collatz.wgsl for license text
         let input_data: Vec<u32> = (1..=256 * 1024).collect(); // 1MiB
         let size = (input_data.len() * size_of::<u32>()) as u64;
         let main_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
@@ -110,7 +110,7 @@ impl GpuResources {
     ) -> Vec<u32> {
         // Heavily adapted from https://github.com/gfx-rs/wgpu/blob/trunk/wgpu/examples/hello-compute/main.rs
         // Used under MIT license
-        // see examples/wgsl/src/collatz.wgsl for license text
+        // see examples/with_wgsl/src/collatz.wgsl for license text
         let input_data: Vec<u32> = (0..256 * 256).collect(); // Maximum number of items which can be reduced in 3 modules
         eprintln!("Expected total {}", input_data.iter().sum::<u32>());
         let main_buffer = self.device.create_buffer_init(&BufferInitDescriptor {

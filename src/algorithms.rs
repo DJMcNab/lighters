@@ -6,7 +6,7 @@ use crate::{
     BlockContext, Returned, ToType, Value,
 };
 
-pub fn scan<T: ToType + ToConstant, Op: ScanOp<T>, const WORKGROUP_WIDTH: u32>(
+pub fn reverse_scan<T: ToType + ToConstant, Op: ScanOp<T>, const WORKGROUP_WIDTH: u32>(
     cx: &mut BlockContext,
     local_id: Value<LocalInvocationId>,
     // TODO: This should always be a constant?
@@ -14,6 +14,10 @@ pub fn scan<T: ToType + ToConstant, Op: ScanOp<T>, const WORKGROUP_WIDTH: u32>(
     scratch: Value<WorkgroupPtr<Array<T, WORKGROUP_WIDTH>>>,
     initial: Value<T>,
 ) -> Returned<T> {
+    // Adapted from https://github.com/linebender/vello/blob/main/shader/pathtag_reduce.wgsl
+    // Used under MIT license
+    // see examples/with_wgsl/src/sum_reduce.wgsl for license text.
+
     let agg = cx.local_variable("agg");
     cx.store(&agg, &initial);
     let idx = local_id.inner().get_component(0);

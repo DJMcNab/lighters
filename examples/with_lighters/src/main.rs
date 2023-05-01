@@ -150,7 +150,7 @@ fn reduce_module() -> Module {
         epcx.body(|cx| {
             let initial = input.index(global_id.inner().get_component(0)).load();
             let this_res = cx.call_function(
-                lighters::algorithms::scan::<u32, Sum, 256>,
+                lighters::algorithms::reverse_scan::<u32, Sum, 256>,
                 &(local_id.clone(), scratch, initial),
             );
             cx.if_(
@@ -180,7 +180,7 @@ fn reduce2_module() -> Module {
         epcx.body(|cx| {
             let initial = input.index(local_id.inner().get_component(0)).load();
             let this_res = cx.call_function(
-                lighters::algorithms::scan::<u32, Sum, 256>,
+                lighters::algorithms::reverse_scan::<u32, Sum, 256>,
                 &(local_id.clone(), scratch, initial),
             );
             cx.store(&input.index(local_id.inner().get_component(0)), &this_res);
@@ -236,7 +236,7 @@ fn scan_module() -> Module {
                 |_| {},
             );
             let this_res = cx.call_function(
-                lighters::algorithms::scan::<u32, Sum, 256>,
+                lighters::algorithms::reverse_scan::<u32, Sum, 256>,
                 &(local_id.clone(), scratch, initial.load()),
             );
             cx.store(
