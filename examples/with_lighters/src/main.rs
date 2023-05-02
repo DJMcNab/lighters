@@ -2,10 +2,12 @@ use std::borrow::Cow;
 
 use lighters::{
     algorithms::Sum,
+    glam::{Vec2, Vec4},
     naga::Module,
     types::{ReadOnly, ReadWrite},
-    BlockContext, ModuleContext, Returned, Value,
+    BlockContext, ModuleContext, Returned, ToType, Value,
 };
+use naga::{StructMember, TypeInner};
 
 /// Run the examples with WGSL shaders, to test compilation time and
 /// Binary size when using Naga's translation
@@ -34,8 +36,8 @@ async fn run() {
     args.next();
     match &args.next().as_deref() {
         Some("collatz") => {
+            let start = std::time::Instant::now();
             let module = collatz_module();
-            write_module(&module);
             // write_module(&module);
             let module = setup
                 .device
@@ -43,6 +45,7 @@ async fn run() {
                     label: None,
                     source: wgpu::ShaderSource::Naga(Cow::Owned(module)),
                 });
+            eprintln!("Shader setup took {:.3?}", start.elapsed());
             let result = setup.run_collatz(&module).await;
             println!("{:?}", &result[..32]);
         }
@@ -246,4 +249,38 @@ fn scan_module() -> Module {
         });
     });
     module_cx.module()
+}
+
+struct LineSegment {
+    start: Vec2,
+    end: Vec2,
+    color: Vec4,
+}
+
+impl ToType for LineSegment {
+    fn naga_ty_inner(registry: &mut lighters::TypeRegistry) -> naga::TypeInner {
+        TypeInner::Struct {
+            members: vec![
+                StructMember {
+                    name: None,
+                    ty: registry.register_type::<Vec2>(),
+                    binding: None,
+                    offset: 0,
+                },
+                StructMember {
+                    name: None,
+                    ty: registry.register_type::<Vec2>(),
+                    binding: None,
+                    offset: 8,
+                },
+                StructMember {
+                    name: None,
+                    ty: registry.register_type::<Vec4>(),
+                    binding: None,
+                    offset: 16,
+                },
+            ],
+            span: 32,
+        }
+    }
 }

@@ -16,6 +16,7 @@ use naga::{Constant, FunctionArgument, FunctionResult, GlobalVariable, Handle, R
 use naga::{EntryPoint, Expression, Function, Module, Span};
 
 pub use functions::Returned;
+pub use glam;
 pub use naga;
 
 /// We unfortunately need to use a null span for all operations, because naga only understands single-file
