@@ -230,13 +230,13 @@ impl<'a> Value<'a, u32> {
     /// A minimal version of saturating mul
     pub fn saturating_mul(
         &self,
-        rhs: &Value<'a, u32>,
+        rhs: u32,
         cx: &mut BlockContext,
-        result: &Value<'_, impl PointerType<Pointee = u32>>,
+        result: Value<'_, impl PointerType<Pointee = u32>>,
         overflowed: Option<impl FnOnce(&mut BlockContext)>,
     ) {
         cx.if_(
-            &self.gt(cx.const_(u32::MAX) / rhs),
+            self.gt(u32::MAX / rhs),
             |cx| {
                 cx.store(result, u32::MAX);
                 if let Some(overflowed) = overflowed {

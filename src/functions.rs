@@ -102,7 +102,7 @@ macro_rules! impl_function {
                 )*
                 let ret = self(block, $($idents),*);
                 if let Some(expr) = ret.expression() {
-                    let _ = block.return_(&Value::<bool>::from_expr_handle(expr, **block));
+                    let _ = block.add_statement(naga::Statement::Return { value: Some(expr) });
                 }
             }
             fn argument_expressions(args: &($(Value<'a, $idents>,)*))->Vec<Handle<Expression>> {

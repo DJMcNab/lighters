@@ -183,12 +183,29 @@ macro_rules! vector {
 }
 
 impl<'a, V: Vector> Value<'a, V> {
-    pub fn get_component(&self, index: u32) -> Value<'a, V::Inner> {
+    pub fn get_component(self, index: u32) -> Value<'a, V::Inner> {
         self.with_expression(Expression::AccessIndex {
             base: self.expr(),
             index,
         })
     }
+
+    pub fn x(self) -> Value<'a, V::Inner> {
+        self.get_component(0)
+    }
+    pub fn y(self) -> Value<'a, V::Inner> {
+        self.get_component(1)
+    }
+
+    // TODO: Only add these if they exist
+    pub fn z(self) -> Value<'a, V::Inner> {
+        self.get_component(1)
+    }
+    pub fn w(self) -> Value<'a, V::Inner> {
+        self.get_component(1)
+    }
+    // fn r(self), fn g(self), fn b(self), fn g(self)?
+    // Maybe a different type for colours, rather than stacking on Vec3?
 }
 
 vector!(glam::u32::UVec2: 2, u32, Bi, Uint, 4, (x, y));

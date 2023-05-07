@@ -70,7 +70,7 @@ impl<'a> BlockContext<'a> {
 
     pub fn if_(
         &mut self,
-        condition: &Value<bool>,
+        condition: Value<bool>,
         then: impl FnOnce(&mut BlockContext<'a>),
         else_: impl FnOnce(&mut BlockContext<'a>),
     ) {
@@ -107,7 +107,7 @@ impl<'a> BlockContext<'a> {
         self.add_statement(Statement::Break);
     }
 
-    pub fn return_<T: ToType>(&mut self, val: &Value<'_, T>) -> Returned<T> {
+    pub fn return_<T: ToType>(&mut self, val: Value<'_, T>) -> Returned<T> {
         if self.has_returned {
             return val.as_return();
         }
@@ -121,7 +121,8 @@ impl<'a> BlockContext<'a> {
     pub fn barrier(&mut self) {
         self.add_statement(Statement::Barrier(Barrier::WORK_GROUP));
     }
-    pub fn store<P: PointerType>(&mut self, to_: &Value<'_, P>, val: impl ToExpr<T = P::Pointee>) {
+
+    pub fn store<P: PointerType>(&mut self, to_: Value<'_, P>, val: impl ToExpr<T = P::Pointee>) {
         self.add_statement(Statement::Store {
             pointer: to_.expr(),
             value: val.get_expr(self.function),

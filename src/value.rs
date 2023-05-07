@@ -105,7 +105,8 @@ pub trait WrappingValue: 'static + Sized + ToType {
 }
 
 impl<'a, T: WrappingValue> Value<'a, T> {
-    pub fn inner(&self) -> Value<'a, T::Inner> {
+    // TODO: Have this be `Deref`, because the different value types have the same layout
+    pub fn inner(self) -> Value<'a, T::Inner> {
         self.with_type()
     }
 }

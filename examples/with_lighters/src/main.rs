@@ -95,10 +95,10 @@ fn collatz_module() -> Module {
             },
         );
         epcx.body(|cx| {
-            let idx = id.inner().get_component(0);
+            let idx = id.inner().x();
             let val_ptr = in_out.index(idx);
             let collatz_result = cx.call_function(collatz_iterations, &(val_ptr.load(),));
-            cx.store(&val_ptr, collatz_result);
+            cx.store(val_ptr, collatz_result);
         });
     });
     module_cx.module()
@@ -107,26 +107,26 @@ fn collatz_module() -> Module {
 fn collatz_iterations(cx: &mut BlockContext, n_base: Value<u32>) -> Returned<u32> {
     let n = cx.local_variable("n");
     let i = cx.local_variable_init("i", 0);
-    cx.store(&n, n_base);
+    cx.store(n, n_base);
     cx.loop_(|cx| {
-        cx.if_(&n.load().le(cx.const_(1)), |cx| cx.break_(), |_| {});
+        cx.if_(n.load().le(cx.const_(1)), |cx| cx.break_(), |_| {});
         cx.if_(
-            &(n.load() % 2).eq(cx.const_(0)),
-            |cx| cx.store(&n, n.load() / 2),
+            (n.load() % 2).eq(0),
+            |cx| cx.store(n, n.load() / 2),
             |cx| {
                 n.load().saturating_mul(
-                    &cx.const_(3),
+                    3,
                     cx,
-                    &n,
-                    Some(|cx: &mut BlockContext| cx.return_(&n.load()).into()),
+                    n,
+                    Some(|cx: &mut BlockContext| cx.return_(n.load()).into()),
                 );
-                cx.store(&n, n.load() + 1);
+                cx.store(n, n.load() + 1);
             },
         );
-        cx.store(&i, i.load() + 1);
+        cx.store(i, i.load() + 1);
     });
 
-    cx.return_(&i.load())
+    i.load().as_return()
 }
 
 fn reduce_module() -> Module {
@@ -151,15 +151,15 @@ fn reduce_module() -> Module {
         let global_id = epcx.global_invocation_id();
         let wg_id = epcx.work_group_id();
         epcx.body(|cx| {
-            let initial = input.index(global_id.inner().get_component(0)).load();
+            let initial = input.index(global_id.inner().x()).load();
             let this_res = cx.call_function(
                 lighters::algorithms::reverse_scan::<u32, Sum, 256>,
                 &(local_id.clone(), scratch, initial),
             );
             cx.if_(
-                &local_id.inner().get_component(0).eq(cx.const_(0)),
+                local_id.inner().x().eq(0),
                 |cx| {
-                    cx.store(&reduced.index(wg_id.inner().get_component(0)), this_res);
+                    cx.store(reduced.index(wg_id.inner().x()), this_res);
                 },
                 |_| {},
             );
@@ -181,12 +181,12 @@ fn reduce2_module() -> Module {
         let local_id = epcx.local_invocation_id();
         let scratch = epcx.workgroup_variable("scratch");
         epcx.body(|cx| {
-            let initial = input.index(local_id.inner().get_component(0)).load();
+            let initial = input.index(local_id.inner().x()).load();
             let this_res = cx.call_function(
                 lighters::algorithms::reverse_scan::<u32, Sum, 256>,
                 &(local_id.clone(), scratch, initial),
             );
-            cx.store(&input.index(local_id.inner().get_component(0)), this_res);
+            cx.store(input.index(local_id.inner().x()), this_res);
         });
     });
     module_cx.module()
@@ -215,22 +215,16 @@ fn scan_module() -> Module {
         let wg_id = epcx.work_group_id();
         epcx.body(|cx| {
             let initial = cx.local_variable("initial");
-            cx.store(
-                &initial,
-                in_out_results
-                    .index(global_id.inner().get_component(0))
-                    .load(),
-            );
+            cx.store(initial, in_out_results.index(global_id.inner().x()).load());
             cx.if_(
-                &local_id.inner().get_component(0).eq(255),
+                local_id.inner().x().eq(255),
                 |cx| {
                     cx.if_(
-                        &wg_id.inner().get_component(0).lt(255),
+                        wg_id.inner().x().lt(255),
                         |cx| {
                             cx.store(
-                                &initial,
-                                initial.load()
-                                    + reduced.index(wg_id.inner().get_component(0) + 1).load(),
+                                initial,
+                                initial.load() + reduced.index(wg_id.inner().x() + 1).load(),
                             );
                         },
                         |_| {},
@@ -242,10 +236,7 @@ fn scan_module() -> Module {
                 lighters::algorithms::reverse_scan::<u32, Sum, 256>,
                 &(local_id.clone(), scratch, initial.load()),
             );
-            cx.store(
-                &in_out_results.index(global_id.inner().get_component(0)),
-                this_res,
-            );
+            cx.store(in_out_results.index(global_id.inner().x()), this_res);
         });
     });
     module_cx.module()
