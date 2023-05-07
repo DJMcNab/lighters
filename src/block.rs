@@ -3,7 +3,7 @@ use std::ops::Deref;
 use crate::{
     functions::{FunctionReturn, Returned, ShaderFunction},
     types::{LocalVariable, PointerType, ToConstant},
-    FnCx, ToType, Value, SPAN,
+    FnCx, ToExpr, ToType, Value, SPAN,
 };
 use naga::{Barrier, Block, Expression, Statement};
 
@@ -121,10 +121,10 @@ impl<'a> BlockContext<'a> {
     pub fn barrier(&mut self) {
         self.add_statement(Statement::Barrier(Barrier::WORK_GROUP));
     }
-    pub fn store<P: PointerType>(&mut self, to_: &Value<'_, P>, val: &Value<'_, P::Pointee>) {
+    pub fn store<P: PointerType>(&mut self, to_: &Value<'_, P>, val: impl ToExpr<T = P::Pointee>) {
         self.add_statement(Statement::Store {
             pointer: to_.expr(),
-            value: val.expr(),
+            value: val.get_expr(self.function),
         });
     }
 
@@ -166,7 +166,7 @@ impl<'a> BlockContext<'a> {
         });
         Value::from_expr_handle(
             self.function.add_expression(Expression::LocalVariable(var)),
-            &self.function,
+            self.function,
         )
     }
 }

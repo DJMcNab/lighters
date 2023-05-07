@@ -37,7 +37,7 @@ impl<T: ToType> FunctionReturn for Returned<T> {
     }
     type RetVal<'a> = Value<'a, T>;
     fn return_value<'a>(cx: &FnCx<'a>, function: Handle<Function>) -> Self::RetVal<'a> {
-        Value::new(Expression::CallResult(function), cx)
+        Value::new(Expression::CallResult(function), *cx)
     }
 
     fn return_expression(ret: &Self::RetVal<'_>) -> Option<Handle<Expression>> {
@@ -97,12 +97,12 @@ macro_rules! impl_function {
                 #[allow(unused)]
                 let mut count = 0;
                 $(
-                    let $idents = Value::new(Expression::FunctionArgument(count), &block);
+                    let $idents = Value::new(Expression::FunctionArgument(count), **block);
                     count += 1;
                 )*
                 let ret = self(block, $($idents),*);
                 if let Some(expr) = ret.expression() {
-                    let _ = block.return_(&Value::<bool>::from_expr_handle(expr, &block));
+                    let _ = block.return_(&Value::<bool>::from_expr_handle(expr, **block));
                 }
             }
             fn argument_expressions(args: &($(Value<'a, $idents>,)*))->Vec<Handle<Expression>> {

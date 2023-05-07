@@ -19,24 +19,24 @@ pub fn reverse_scan<T: ToType + ToConstant, Op: ScanOp<T>, const WORKGROUP_WIDTH
     // see examples/with_wgsl/src/sum_reduce.wgsl for license text.
 
     let agg = cx.local_variable("agg");
-    cx.store(&agg, &initial);
+    cx.store(&agg, initial);
     let idx = local_id.inner().get_component(0);
     let this_val = scratch.get_index(&idx);
-    cx.store(&this_val, &(agg.load()));
+    cx.store(&this_val, agg.load());
     for i in 0..WORKGROUP_WIDTH.ilog2() {
         cx.barrier();
         let new_index = &idx + (1 << i);
         cx.if_(
-            &new_index.lt(&cx.const_(WORKGROUP_WIDTH)),
+            &new_index.lt(cx.const_(WORKGROUP_WIDTH)),
             |cx| {
                 let other = scratch.get_index(&new_index);
                 let result = Op::run(&agg.load(), &other.load());
-                cx.store(&agg, &result);
+                cx.store(&agg, result);
             },
             |_| {},
         );
         cx.barrier();
-        cx.store(&this_val, &agg.load());
+        cx.store(&this_val, agg.load());
     }
 
     agg.load().as_return()

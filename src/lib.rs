@@ -7,7 +7,6 @@ pub mod value;
 
 use std::any::TypeId;
 use std::cell::RefCell;
-use std::rc::Rc;
 
 pub use block::BlockContext;
 use emitter::Emitter;
@@ -33,7 +32,7 @@ use types::{StorageAccess, StoragePtr, TypeMap};
 use types::{ToConstant, WorkgroupPtr};
 
 pub use types::{ToType, TypeRegistry};
-pub use value::{entry_point, Value};
+pub use value::{entry_point, ToExpr, Value};
 
 #[macro_export]
 macro_rules! Let {
@@ -116,13 +115,13 @@ impl<'a> EntryPointContext<'a> {
 
     pub fn workgroup_size(&mut self) -> Value<'a, entry_point::WorkgroupSize> {
         if let Some(size) = &self.workgroup_size_expr {
-            return size.clone();
+            return *size;
         }
         let size_constant = self
             .cx
             .add_named_constant(glam::UVec3::from(self.workgroup_size), "WORKGROUP_SIZE");
-        let value = Value::from_const_handle(size_constant, &self.cx);
-        self.workgroup_size_expr = Some(value.clone());
+        let value = Value::from_const_handle(size_constant, self.cx);
+        self.workgroup_size_expr = Some(value);
         value
     }
 
@@ -144,7 +143,7 @@ impl<'a> EntryPointContext<'a> {
             });
             index as u32
         });
-        Value::new(Expression::FunctionArgument(index), &self.cx)
+        Value::new(Expression::FunctionArgument(index), self.cx)
     }
 
     pub fn storage_variable<T: ToType, A: StorageAccess>(
@@ -167,7 +166,7 @@ impl<'a> EntryPointContext<'a> {
                 SPAN,
             )
         });
-        Value::new(Expression::GlobalVariable(handle), &self.cx)
+        Value::new(Expression::GlobalVariable(handle), self.cx)
     }
 
     pub fn workgroup_variable<T: ToType>(&mut self, name: &str) -> Value<'a, WorkgroupPtr<T>> {
@@ -184,7 +183,7 @@ impl<'a> EntryPointContext<'a> {
                 SPAN,
             )
         });
-        Value::new(Expression::GlobalVariable(handle), &self.cx)
+        Value::new(Expression::GlobalVariable(handle), self.cx)
     }
 }
 
@@ -210,11 +209,12 @@ impl ModuleContext {
             .map(|ty| FunctionResult { ty, binding: None });
         function.name = Some(std::any::type_name::<F>().to_string());
         {
-            let fn_cx = FnCx::new(FunctionContext {
+            let cell = RefCell::new(FunctionContext {
                 module: &mut *self,
                 function: &mut function,
                 emitter: Default::default(),
             });
+            let fn_cx = FnCx::new(&cell);
             let mut block_ctx = BlockContext::new(fn_cx);
             f.call(&mut block_ctx);
             block_ctx.emit();
@@ -235,11 +235,12 @@ impl ModuleContext {
         let mut function = Function::default();
 
         {
-            let fn_cx = FnCx::new(FunctionContext {
+            let cell = RefCell::new(FunctionContext {
                 module: &mut *self,
                 function: &mut function,
                 emitter: Default::default(),
             });
+            let fn_cx = FnCx::new(&cell);
             fn_cx.with_full_context(|e| e.emitter.start(&e.function.expressions));
             let mut ep_cx = EntryPointContext {
                 cx: fn_cx,
@@ -263,13 +264,13 @@ impl ModuleContext {
     }
 }
 
-#[derive(Clone)]
-pub struct FnCx<'a>(Rc<RefCell<FunctionContext<'a>>>);
+#[derive(Copy, Clone)]
+pub struct FnCx<'a>(&'a RefCell<FunctionContext<'a>>);
 
 impl<'a> FnCx<'a> {
     /// Creates a new [`FnCx`].
-    fn new(fun: FunctionContext<'a>) -> Self {
-        Self(Rc::new(RefCell::new(fun)))
+    fn new(fun: &'a RefCell<FunctionContext<'a>>) -> Self {
+        Self(fun)
     }
 }
 
@@ -314,7 +315,7 @@ impl<'a> FnCx<'a> {
     ) -> Handle<Constant> {
         self.with_module_cx(|module| module.registry().register_constant_named(val, name))
     }
-    pub fn const_<T: ToConstant + ToType>(&self, val: T) -> value::Value<'a, T> {
+    pub fn const_<T: ToConstant + ToType>(self, val: T) -> value::Value<'a, T> {
         let constant = self.add_constant(val);
 
         Value::new(Expression::Constant(constant), self)
