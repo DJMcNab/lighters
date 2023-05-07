@@ -11,9 +11,11 @@ async fn run() {
     args.next();
     match &args.next().as_deref() {
         Some("collatz") => {
+            let start = std::time::Instant::now();
             let module = setup
                 .device
                 .create_shader_module(wgpu::include_wgsl!("./collatz.wgsl"));
+            eprintln!("Shader setup took {:.3?}", start.elapsed());
             let result = setup.run_collatz(&module).await;
             println!("{:?}", &result[..32]);
         }
