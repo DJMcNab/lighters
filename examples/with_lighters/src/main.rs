@@ -109,7 +109,7 @@ fn collatz_iterations(cx: &mut BlockContext, n_base: Value<u32>) -> Returned<u32
     let i = cx.local_variable_init("i", 0);
     cx.store(n, n_base);
     cx.loop_(|cx| {
-        cx.if_(n.load().le(cx.const_(1)), |cx| cx.break_(), |_| {});
+        cx.if_(n.load().le(1), |cx| cx.break_(), |_| {});
         cx.if_(
             (n.load() % 2).eq(0),
             |cx| cx.store(n, n.load() / 2),

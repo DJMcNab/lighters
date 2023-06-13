@@ -34,6 +34,7 @@ pub struct Value<'a, T: ToType> {
 }
 
 // Need to use manual implementations because
+// type parameter would assume `T` must be `Clone`
 impl<'a, T: ToType> Clone for Value<'a, T> {
     fn clone(&self) -> Self {
         *self
@@ -91,7 +92,7 @@ impl<'a, T: ToType> Value<'a, T> {
     }
 
     pub fn realise(self) -> Self {
-        let expr = self.expr();
+        let expr: Handle<Expression> = self.expr();
         Self::from_expr_handle(expr, self.fn_cx)
     }
 
@@ -105,7 +106,7 @@ pub trait WrappingValue: 'static + Sized + ToType {
 }
 
 impl<'a, T: WrappingValue> Value<'a, T> {
-    // TODO: Have this be `Deref`, because the different value types have the same layout
+    // TODO: Have this be `Deref`, because the different value types have the same layout and data
     pub fn inner(self) -> Value<'a, T::Inner> {
         self.with_type()
     }
